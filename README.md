@@ -1,3 +1,71 @@
+
+## Project structure
+```
+KeplerCore/
+│
+├── Controllers/
+│   ├── AuthController.cs
+│   ├── SessionController.cs
+│   ├── QueueController.cs
+│   └── DashboardController.cs
+│
+├── Models/
+│   ├── Operator.cs
+│   ├── Session.cs
+│   ├── Participant.cs
+│   ├── QueueEntry.cs
+│   ├── StintSlot.cs
+│   └── SessionLog.cs
+│
+├── Data/
+│   └── AppDbContext.cs
+│
+├── Services/
+│   ├── EmailService.cs
+│   ├── QueueService.cs
+│   └── SessionService.cs
+│
+├── Views/
+│   ├── Auth/
+│   ├── Dashboard/
+│   ├── Queue/
+│   └── Session/
+│
+├── ViewModels/
+│   ├── RegisterViewModel.cs
+│   └── QueueViewModel.cs
+│
+└── Program.cs
+```
+
+## Connect to a db create  `appsettings.json`
+ ```
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "ConnectionStrings": {
+    "Default": "server= 204.168.222.76;port=3306;database=kepler_core;user=root;password=nuevopassword"
+  },
+  "AllowedHosts": "*"
+}
+ ```
+
+### commands to migrate
+Initial migration
+ ```
+ dotnet ef migrations add MigrationName
+ ```
+Update Db
+ ```
+ dotnet ef database update
+ ```
+
+
+
 # KEPLER / TRACKLINE ALLIANCE — Documentación de Base de Datos
 
 **Versión:** 1.0  

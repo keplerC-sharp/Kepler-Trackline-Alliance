@@ -1,0 +1,10 @@
+@model Kepler_Trackline_Alliance.ViewModels.RegisterViewModel
+
+<form method="post">
+    <input asp-for="Identifier" placeholder="Identifier" />
+    <input asp-for="FullName" placeholder="Full Name" />
+    <input asp-for="Email" placeholder="Email" />
+    <input asp-for="Password" type="password" />
+
+    <button type="submit">Register</button>
+</form>

@@ -1,0 +1,22 @@
+@model List<Kepler_Trackline_Alliance.Models.QueueEntry>
+
+<h2>Queue Dashboard</h2>
+
+<table>
+    <tr>
+        <th>Pos</th>
+        <th>Name</th>
+        <th>Priority</th>
+        <th>Status</th>
+    </tr>
+
+    @foreach (var item in Model)
+    {
+        <tr>
+            <td>@item.Position</td>
+            <td>@item.Participant.FullName</td>
+            <td>@item.Priority</td>
+            <td>@item.Status</td>
+        </tr>
+    }
+</table>
