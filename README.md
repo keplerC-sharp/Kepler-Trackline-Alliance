@@ -1,343 +1,207 @@
-# KEPLER / TRACKLINE ALLIANCE — Documentación de Base de Datos
+# APEX CONTROL — MPA Frontend
 
-**Versión:** 1.0  
-**Motor:** MySQL 8.0+  
-**Charset:** utf8mb4 / utf8mb4_unicode_ci  
-**Base de datos:** `kepler_core`
+System for managing pilots, vehicles, queues, and ticket printing for track events.
 
 ---
 
-## Propósito del sistema
-
-KEPLER es una aplicación de **gestión de cola con prioridades**, controlada por un operador. Los participantes se registran y son asignados a una cola FIFO que respeta niveles de prioridad (Grade S, A, B). El operador controla en tiempo real quién está siendo atendido, quién es el siguiente y el estado de cada turno.
-
----
-
-## Diagrama de relaciones
+## Project Structure
 
 ```
-operators ──< sessions ──< queue_entries >── participants
-                │                │
-                │                └──< stint_slots
-                │
-                └──< session_log
+apex-mpa/
+├── index.html # Login / Secure Access Gateway
+├── registro.html # Pilot, vehicle, and shift assignment registration
+├── cola.html # Real-time shift queue
+├── tiquetes.html # History of generated tickets
+├── css/
+│ └── styles.css # Global styles shared by all pages
+└── js/
+
+├── shared.js # Shared utilities: auth, sidebar, toasts, print
+
+├── login.js # Exclusive login logic
+
+├── registro.js # Exclusive logic for registration and shift assignment
+
+├── queue.js # Exclusive logic for the real-time queue
+
+└── tickets.js # Exclusive logic for the ticket history
 ```
 
 ---
 
-## Tablas
+## Pages
 
-### 1. `operators`
+### `index.html` — Login
+- Login with Marshal ID and Access Key
+- "Remember Station" option (ID persists in `localStorage`)
+- Auth guard: if a session is already active, redirects directly to `registration.html`
+- Connection status indicators (Telemetry Link / Encryption)
 
-Usuarios del sistema que abren sesiones y gestionan la cola.
+### `registration.html` — Driver & Vehicle Onboarding
+- **Driver Tab:** form with inline validations (name, duplicate ID, email, license)
+- **Vehicle Tab:** make/model, VIN, garage, category
+- **Search Driver Tab:** autocomplete, driver selection, shift assignment with selector Duration
+- Print button appears after each successful registration
+- Print server configuration bar with connection test
 
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | INT UNSIGNED PK | Identificador único |
-| `identifier` | VARCHAR(50) UNIQUE | Código de operador (`ID_ALPHA_00`) |
-| `full_name` | VARCHAR(120) | Nombre completo |
-| `password_hash` | VARCHAR(255) | Contraseña hasheada (bcrypt) |
-| `role` | ENUM | `ADMIN` · `OPERATOR` |
-| `created_at` | DATETIME | Fecha de registro |
+### `queue.html` — Turn Queue
+- List of turns with statuses: `PENDING`, `ON TRACK`, `COMPLETED`
+- Real-time countdown of the active turn (updates every second)
+- Large timer with color change: cyan → yellow (70%) → flashing red (85%)
+- Live statistics: pending / on track / completed
+- Manual or automatic turn advancement when time expires
+- SignalR simulation using `setInterval`
 
-**Notas:**
-- El rol `ADMIN` puede crear sesiones y gestionar participantes.
-- El rol `OPERATOR` puede mover entradas en la cola y actualizar estados.
-
----
-
-### 2. `sessions`
-
-Una sesión representa una jornada de atención abierta por un operador. Toda la cola y sus movimientos pertenecen a una sesión activa.
-
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | INT UNSIGNED PK | Identificador único |
-| `operator_id` | INT UNSIGNED FK | Operador que la gestiona |
-| `session_code` | VARCHAR(30) UNIQUE | Código legible (`SESSION_01`) |
-| `status` | ENUM | `STANDBY` · `LIVE` · `COMPLETED` · `TERMINATED` |
-| `started_at` | DATETIME | Momento de inicio real |
-| `ended_at` | DATETIME | Momento de cierre |
-| `created_at` | DATETIME | Fecha de creación |
-
-**Ciclo de vida de una sesión:**
-
-```
-STANDBY → LIVE → COMPLETED
-                ↘ TERMINATED  (cierre forzado)
-```
-
-**FK:** `operator_id` → `operators.id` (RESTRICT)
+### `tickets.html` — Ticket History
+- Displays all generated tickets: drivers, vehicles, and turns
+- Filters by type: All / Turns / Drivers / Vehicles
+- Individual reprint button for each ticket
+- ​​Individual deletion button and full history clear
 
 ---
 
-### 3. `participants`
+## Technologies
 
-Personas registradas en el sistema que pueden ser añadidas a una cola. Su `grade` determina la prioridad con la que ingresan.
+| Technology | Usage |
 
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | INT UNSIGNED PK | Identificador único |
-| `full_name` | VARCHAR(120) | Nombre completo |
-| `grid_id` | VARCHAR(20) UNIQUE | Código único del participante (`KR-460-THX`) |
-| `grade` | ENUM | `S` (alta prioridad) · `A` (media) · `B` (estándar) |
-| `season_points` | SMALLINT UNSIGNED | Puntaje acumulado en la temporada |
-| `registered_at` | DATETIME | Fecha de registro en el sistema |
-
-**Regla de prioridad por grade:**
-
-| Grade | `priority` en cola | Comportamiento |
-|---|---|---|
-| `S` | `HIGH` | Entra antes que todos los `NORMAL` |
-| `A` | `NORMAL` | Orden de llegada entre A y B |
-| `B` | `NORMAL` | Orden de llegada entre A y B |
-
----
-
-### 4. `queue_entries`
-
-**Tabla principal del sistema.** Cada fila representa un turno en la cola para una sesión específica.
-
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | INT UNSIGNED PK | Identificador único |
-| `session_id` | INT UNSIGNED FK | Sesión a la que pertenece |
-| `participant_id` | INT UNSIGNED FK | Participante en turno |
-| `position` | SMALLINT UNSIGNED | Posición actual en la cola (1 = primero) |
-| `priority` | ENUM | `HIGH` · `NORMAL` |
-| `status` | ENUM | Ver ciclo de vida abajo |
-| `estimated_start_s` | DECIMAL(9,2) | Tiempo estimado de inicio en segundos |
-| `session_time_s` | DECIMAL(9,2) | Duración real de la atención en segundos |
-| `entered_at` | DATETIME | Cuando se añadió a la cola |
-| `started_at` | DATETIME | Cuando pasó a `ON_TRACK` |
-| `completed_at` | DATETIME | Cuando finalizó la atención |
-
-**Ciclo de vida de un turno:**
-
-```
-QUEUED → UP_NEXT → ON_TRACK → COMPLETED
-   ↓                   ↓
-CANCELLED          CANCELLED
-```
-
-| Status | Pantalla equivalente | Descripción |
-|---|---|---|
-| `ON_TRACK` | Panel "EN PISTA" | Siendo atendido ahora |
-| `UP_NEXT` | Panel "PRÓXIMO" | El siguiente en entrar |
-| `QUEUED` | Panel "COLA" | En espera con posición asignada |
-| `COMPLETED` | — | Atención finalizada |
-| `CANCELLED` | — | Retirado de la cola |
-
-**Restricciones:**
-- `UNIQUE (session_id, participant_id)` — un participante no puede estar dos veces en la misma sesión.
-
-**FK:**
-- `session_id` → `sessions.id` (CASCADE)
-- `participant_id` → `participants.id` (RESTRICT)
-
----
-
-### 5. `stint_slots`
-
-Representa los **espacios físicos de atención** que el operador visualiza y gestiona en pantalla (panel de Stint Strategy). El operador asigna una `queue_entry` a un slot mediante drag & drop.
-
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | INT UNSIGNED PK | Identificador único |
-| `session_id` | INT UNSIGNED FK | Sesión a la que pertenece |
-| `queue_entry_id` | INT UNSIGNED FK | Turno asignado (`NULL` = slot vacío) |
-| `slot_order` | TINYINT UNSIGNED | Orden del slot (1 = principal) |
-| `slot_status` | ENUM | `ACTIVE` · `QUEUED` · `HOLD` · `BLOCKED` · `EMPTY` |
-| `assigned_at` | DATETIME | Cuando se asignó el turno al slot |
-
-**Estados de un slot:**
-
-| Status | Color en UI | Descripción |
-|---|---|---|
-| `ACTIVE` | Verde (`GREEN_LIT`) | Atención en curso |
-| `QUEUED` | Amarillo | En cola, listo para activar |
-| `HOLD` | Naranja (`HOLD_BOX`) | Pausado, esperando instrucción |
-| `BLOCKED` | Rojo | Bloqueado por el operador |
-| `EMPTY` | Gris | Sin asignar |
-
-**FK:**
-- `session_id` → `sessions.id` (CASCADE)
-- `queue_entry_id` → `queue_entries.id` (SET NULL al eliminar)
-
----
-
-### 6. `session_log`
-
-Registro cronológico de todas las acciones del operador durante una sesión. Equivale al "Race Control Log" del diseño. Permite auditoría y trazabilidad completa.
-
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | INT UNSIGNED PK | Identificador único |
-| `session_id` | INT UNSIGNED FK | Sesión relacionada |
-| `operator_id` | INT UNSIGNED FK | Operador que ejecutó la acción |
-| `action_type` | ENUM | Tipo de acción (ver tabla abajo) |
-| `notes` | TEXT | Detalle libre de la acción |
-| `created_at` | DATETIME(3) | Timestamp con milisegundos |
-
-**Tipos de acción registrados:**
-
-| `action_type` | Descripción |
 |---|---|
-| `SESSION_STARTED` | La sesión fue abierta |
-| `SESSION_ENDED` | La sesión fue cerrada normalmente |
-| `ENTRY_ADDED` | Nuevo participante añadido a la cola |
-| `ENTRY_PROMOTED` | Participante subió de prioridad |
-| `ENTRY_MOVED` | Participante cambió de posición |
-| `ENTRY_ON_TRACK` | Participante pasó a ser atendido |
-| `ENTRY_COMPLETED` | Atención finalizada |
-| `ENTRY_CANCELLED` | Participante retirado de la cola |
-| `SLOT_ASSIGNED` | Un turno fue asignado a un slot |
-| `SLOT_BLOCKED` | Un slot fue bloqueado por el operador |
 
-**FK:**
-- `session_id` → `sessions.id` (CASCADE)
-- `operator_id` → `operators.id` (SET NULL)
+| HTML5 | Page Structure |
 
----
+| CSS3 + CSS Variables | Global Styles, Dark Theme, Responsive Design |
 
-## Índices
+| JavaScript ES6+ | Business Logic, No Frameworks |
 
-| Índice | Tabla | Columnas | Propósito |
-|---|---|---|---|
-| `idx_queue_session_status` | `queue_entries` | `session_id, status` | Filtrar cola por estado |
-| `idx_queue_session_position` | `queue_entries` | `session_id, position` | Ordenar cola por posición |
-| `idx_stint_session` | `stint_slots` | `session_id, slot_order` | Listar slots en orden |
-| `idx_log_session_time` | `session_log` | `session_id, created_at` | Log cronológico por sesión |
+| Bootstrap 5.3 | Grid, Responsive Utilities |
+
+| Bootstrap Icons 1.11 | Iconography |
+
+| Google Fonts | Barlow Condensed, Barlow, Share Tech Mono |
+
+No JS frameworks (no React, no Vue, no Angular). No bundler. Opens directly in the browser.
 
 ---
 
-## Vista: `vw_queue_status`
+## Inter-Page Communication
 
-Muestra el estado completo de la cola activa, ordenado por estado y posición.
+Data is shared between pages using `localStorage` and `sessionStorage`:
 
-```sql
-SELECT * FROM vw_queue_status;
-```
+| Key | Type | Content |
 
-**Columnas devueltas:**
+|---|---|---|
 
-| Columna | Descripción |
-|---|---|
-| `position` | Posición en la cola |
-| `full_name` | Nombre del participante |
-| `grid_id` | Código único |
-| `grade` | Grado S / A / B |
-| `season_points` | Puntos acumulados |
-| `priority` | HIGH / NORMAL |
-| `status` | Estado actual del turno |
-| `estimated_start_s` | Tiempo estimado de inicio |
-| `session_time_s` | Tiempo real de atención |
-| `entered_at` | Cuándo ingresó a la cola |
-| `started_at` | Cuándo comenzó a ser atendido |
+`apex_user` | `sessionStorage` | Authenticated user `{id, role}` |
 
-**Orden de resultados:** `ON_TRACK → UP_NEXT → QUEUED → COMPLETED → CANCELLED`
+`apex_queue` | `localStorage` | Array of queue positions |
+
+`apex_tickets` | `localStorage` | History of generated tickets |
+
+`apex_print_ip` | `localStorage` | IP:Port of the print server |
+
+`apex_remember_id` | `localStorage` | Marshal ID remembered upon login |
 
 ---
 
-## Lógica de negocio clave
+## Auth Guard
 
-### Insertar un participante en la cola
+All pages except `index.html` call `requireAuth()` on load. If there is no active session in `sessionStorage`, they are automatically redirected to the login page.
 
-```sql
--- 1. Determinar la prioridad según el grade del participante
--- 2. Si priority = HIGH → insertar antes de los NORMAL
---    Si priority = NORMAL → insertar al final de la cola FIFO
+```js
+// In shared.js
+function requireAuth() {
+if (!sessionStorage.getItem('apex_user')) {
+window.location.href = 'index.html';
 
-INSERT INTO queue_entries (session_id, participant_id, position, priority, status)
-VALUES (
-  :session_id,
-  :participant_id,
-  (SELECT COALESCE(MAX(position), 0) + 1 FROM queue_entries
-   WHERE session_id = :session_id AND status = 'QUEUED'),
-  :priority,   -- HIGH o NORMAL según grade del participante
-  'QUEUED'
-);
-```
-
-### Avanzar la cola (llamar al siguiente)
-
-```sql
--- Completar el ON_TRACK actual
-UPDATE queue_entries
-SET status = 'COMPLETED', completed_at = NOW()
-WHERE session_id = :session_id AND status = 'ON_TRACK';
-
--- Promover UP_NEXT a ON_TRACK
-UPDATE queue_entries
-SET status = 'ON_TRACK', started_at = NOW()
-WHERE session_id = :session_id AND status = 'UP_NEXT';
-
--- Promover el primero en QUEUED a UP_NEXT
-UPDATE queue_entries
-SET status = 'UP_NEXT'
-WHERE session_id = :session_id AND status = 'QUEUED'
-ORDER BY priority DESC, position ASC
-LIMIT 1;
-```
-
-### Consultar estado del panel de pits (On Track / Up Next / Cola)
-
-```sql
--- EN PISTA
-SELECT p.full_name, qe.session_time_s
-FROM queue_entries qe JOIN participants p ON qe.participant_id = p.id
-WHERE qe.session_id = :session_id AND qe.status = 'ON_TRACK';
-
--- PRÓXIMO
-SELECT p.full_name, p.grade, qe.estimated_start_s
-FROM queue_entries qe JOIN participants p ON qe.participant_id = p.id
-WHERE qe.session_id = :session_id AND qe.status = 'UP_NEXT';
-
--- COLA (con tiempo estimado de inicio)
-SELECT qe.position, p.full_name, qe.estimated_start_s
-FROM queue_entries qe JOIN participants p ON qe.participant_id = p.id
-WHERE qe.session_id = :session_id AND qe.status = 'QUEUED'
-ORDER BY qe.position ASC;
+}
+}
 ```
 
 ---
 
-## Instrucciones de instalación
+## Printing — Xprinter 58mm
 
-```bash
-# Crear la base de datos y ejecutar el script
-mysql -u root -p < kepler_core_database.sql
+The frontend sends print requests to the ASP.NET Core backend, which physically controls the printer.
 
-# Verificar las tablas creadas
-mysql -u root -p kepler_core -e "SHOW TABLES;"
-```
-
-**Tablas esperadas:**
+### Configuration
+In `registro.html` and `tiquetes.html`, there is a configuration bar where you enter the server's IP address and port:
 
 ```
-+------------------------+
-| Tables_in_kepler_core  |
-+------------------------+
-| operators              |
-| sessions               |
-| participants           |
-| queue_entries          |
-| stint_slots            |
-| session_log            |
-+------------------------+
+http://192.168.1.105:3000
+```
+
+This address is automatically saved in `localStorage` (`apex_print_ip`).
+
+### Endpoints consumed by the frontend
+
+| Method | Path | Description |
+
+|---|---|---|
+
+| `GET` | `/api/print/health` | Connection test |
+
+| `POST` | `/api/print/pilot` | Print pilot ticket |
+
+| `POST` | `/api/print/vehicle` | Print vehicle ticket |
+
+| `POST` | `/api/print/turno` | Print shift ticket |
+
+
+### Example Payload — Shift
+```json
+{
+"type": "shift",
+"shift": "T-003",
+"name": "L. HAMILTON",
+"vehicle": "Porsche 911 GT3 RS",
+"duration": 20,
+"createdAt": "10:45:32",
+"date": "29/04/2024 10:45:32"
+}
+```
+
+### Printer Driver
+Install the `.exe` driver file on the PC where the Xprinter is connected via USB. Once installed:
+1. Verify that the Xprinter appears in **Devices and Printers**
+2. Print a test page to confirm
+3. Note the COM port in **Device Manager → Ports (COM & LPT)**
+4. Configure the port in `appsettings.json` of the backend:
+
+```json
+"Printer": {
+"Port": "COM3"
+}
 ```
 
 ---
 
-## Requisitos del servidor
+## How to run
 
-| Requisito | Mínimo |
-|---|---|
-| MySQL | 8.0+ |
-| Almacenamiento inicial | ~5 MB |
-| Charset | utf8mb4 |
-| Engine | InnoDB (requerido para FK) |
+1. Clone or extract the project
+2. Ensure your PC and mobile device are on the same Wi-Fi network
+3. Open `index.html` in your browser (or serve it using any static server)
+4. Log in with any Marshal ID and password (mock—connect to the live backend when available)
+5. Configure the print server IP address in the field in the top bar
+
+> For production, it is recommended to serve the files as static files using IIS, Nginx, or ASP.NET Core. Do not open the `.html` file directly from the file system, as some browsers restrict access to `localStorage` for the `file://` protocol.
 
 ---
 
-*KEPLER / TRACKLINE ALLIANCE — Database Docs v1.0*
+## Connecting to the live backend (pending)
+
+Currently, the frontend uses mock data. To connect to the ASP.NET Core backend, replace the functions marked with the comment `// — Here you connect to your actual API —` in each JS file:
+
+- `js/login.js` → `POST /api/auth/login`
+- `js/registro.js` → `POST /api/pilotos`, `POST /api/vehiculos`, `POST /api/turnos`
+- `js/cola.js` → `GET /api/turnos/cola` (SignalR hub)
+
+---
+
+## Responsive
+
+The design is fully responsive:
+
+- **Desktop:** Visible sidebar, two-column layout
+- **Tablet:** Collapsible sidebar with hamburger menu
+- **Mobile:** Single-column view, sidebar as a side drawer
+
+Breakpoints inherited from Bootstrap 5 (`sm`, `lg`).
