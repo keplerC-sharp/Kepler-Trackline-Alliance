@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Kepler_Trackline_Alliance.Models;
 
@@ -6,19 +5,22 @@ namespace Kepler_Trackline_Alliance.Controllers;
 
 public class HomeController : Controller
 {
+    // Redirigir raíz: si está logueado -> Queue, si no -> Login
     public IActionResult Index()
     {
-        return View();
+        if (User.Identity?.IsAuthenticated == true)
+            return RedirectToAction("Index", "Queue");
+        return RedirectToAction("Login", "Auth");
     }
 
-    public IActionResult Privacy()
-    {
-        return View();
-    }
-
-    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+    // Página de error global
     public IActionResult Error()
     {
-        return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+        return View(new ErrorViewModel
+        {
+            RequestId = System.Diagnostics.Activity.Current?.Id ?? HttpContext.TraceIdentifier
+        });
     }
+
+    public IActionResult Privacy() => View();
 }

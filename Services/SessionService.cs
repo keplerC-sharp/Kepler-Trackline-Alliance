@@ -1,15 +1,18 @@
 using Kepler_Trackline_Alliance.Data;
 using Kepler_Trackline_Alliance.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Kepler_Trackline_Alliance.Services;
 
 public class SessionService
 {
     private readonly AppDbContext _context;
+    private readonly ILogger<SessionService> _logger;
 
-    public SessionService(AppDbContext context)
+    public SessionService(AppDbContext context, ILogger<SessionService> logger)
     {
         _context = context;
+        _logger  = logger;
     }
 
     public async Task StartSessionAsync(uint operatorId)
@@ -18,10 +21,10 @@ public class SessionService
         {
             var session = new Session
             {
-                OperatorId = operatorId,
+                OperatorId  = operatorId,
                 SessionCode = $"SESSION_{DateTime.Now.Ticks}",
-                Status = "LIVE",
-                StartedAt = DateTime.Now
+                Status      = "LIVE",
+                StartedAt   = DateTime.Now
             };
 
             _context.Sessions.Add(session);
@@ -29,7 +32,8 @@ public class SessionService
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
+            _logger.LogError(ex, "Error al iniciar sesión para operador {OperatorId}", operatorId);
+            throw;
         }
     }
 }
