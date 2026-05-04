@@ -1,207 +1,350 @@
-# APEX CONTROL — MPA Frontend
+# KEPLER / TRACKLINE ALLIANCE
+### Sistema de Gestión de Cola con Prioridades — Documentación Completa
 
-System for managing pilots, vehicles, queues, and ticket printing for track events.
+## Autore
+- Camilo
+- Daniela
+- Juan Eduardo
+- Ismael
 
----
-
-## Project Structure
-
-```
-apex-mpa/
-├── index.html # Login / Secure Access Gateway
-├── registro.html # Pilot, vehicle, and shift assignment registration
-├── cola.html # Real-time shift queue
-├── tiquetes.html # History of generated tickets
-├── css/
-│ └── styles.css # Global styles shared by all pages
-└── js/
-
-├── shared.js # Shared utilities: auth, sidebar, toasts, print
-
-├── login.js # Exclusive login logic
-
-├── registro.js # Exclusive logic for registration and shift assignment
-
-├── queue.js # Exclusive logic for the real-time queue
-
-└── tickets.js # Exclusive logic for the ticket history
-```
+**Stack:** ASP.NET Core 10 · Entity Framework Core 9 · MySQL 8 · Vanilla JS  
+**Base de datos:** `kepler_core`  
+**Versión:** 2.0
 
 ---
 
-## Pages
+## ¿Qué es este sistema?
 
-### `index.html` — Login
-- Login with Marshal ID and Access Key
-- "Remember Station" option (ID persists in `localStorage`)
-- Auth guard: if a session is already active, redirects directly to `registration.html`
-- Connection status indicators (Telemetry Link / Encryption)
-
-### `registration.html` — Driver & Vehicle Onboarding
-- **Driver Tab:** form with inline validations (name, duplicate ID, email, license)
-- **Vehicle Tab:** make/model, VIN, garage, category
-- **Search Driver Tab:** autocomplete, driver selection, shift assignment with selector Duration
-- Print button appears after each successful registration
-- Print server configuration bar with connection test
-
-### `queue.html` — Turn Queue
-- List of turns with statuses: `PENDING`, `ON TRACK`, `COMPLETED`
-- Real-time countdown of the active turn (updates every second)
-- Large timer with color change: cyan → yellow (70%) → flashing red (85%)
-- Live statistics: pending / on track / completed
-- Manual or automatic turn advancement when time expires
-- SignalR simulation using `setInterval`
-
-### `tickets.html` — Ticket History
-- Displays all generated tickets: drivers, vehicles, and turns
-- Filters by type: All / Turns / Drivers / Vehicles
-- Individual reprint button for each ticket
-- ​​Individual deletion button and full history clear
+KEPLER es una aplicación web para gestión de turnos en tiempo real. Un operador autenticado abre una sesión, registra participantes con su Grid ID y nivel de licencia, y los asigna a una cola FIFO con prioridad automática según su grade. Desde el panel de cola puede avanzar turnos, ver quién está en pista y quién es el siguiente.
 
 ---
 
-## Technologies
+## Requisitos
 
-| Technology | Usage |
-
+| Requisito | Versión mínima |
 |---|---|
-
-| HTML5 | Page Structure |
-
-| CSS3 + CSS Variables | Global Styles, Dark Theme, Responsive Design |
-
-| JavaScript ES6+ | Business Logic, No Frameworks |
-
-| Bootstrap 5.3 | Grid, Responsive Utilities |
-
-| Bootstrap Icons 1.11 | Iconography |
-
-| Google Fonts | Barlow Condensed, Barlow, Share Tech Mono |
-
-No JS frameworks (no React, no Vue, no Angular). No bundler. Opens directly in the browser.
+| .NET SDK | 10.0 |
+| MySQL | 8.0+ |
+| Navegador moderno | Chrome / Firefox / Edge |
 
 ---
 
-## Inter-Page Communication
+## Instalación y ejecución
 
-Data is shared between pages using `localStorage` and `sessionStorage`:
+### 1. Clonar / descomprimir el proyecto
 
-| Key | Type | Content |
-
-|---|---|---|
-
-`apex_user` | `sessionStorage` | Authenticated user `{id, role}` |
-
-`apex_queue` | `localStorage` | Array of queue positions |
-
-`apex_tickets` | `localStorage` | History of generated tickets |
-
-`apex_print_ip` | `localStorage` | IP:Port of the print server |
-
-`apex_remember_id` | `localStorage` | Marshal ID remembered upon login |
-
----
-
-## Auth Guard
-
-All pages except `index.html` call `requireAuth()` on load. If there is no active session in `sessionStorage`, they are automatically redirected to the login page.
-
-```js
-// In shared.js
-function requireAuth() {
-if (!sessionStorage.getItem('apex_user')) {
-window.location.href = 'index.html';
-
-}
-}
+```bash
+cd kepler/
 ```
 
----
+### 2. Configurar la base de datos
 
-## Printing — Xprinter 58mm
+Editar `appsettings.json` con los datos de tu servidor MySQL:
 
-The frontend sends print requests to the ASP.NET Core backend, which physically controls the printer.
-
-### Configuration
-In `registro.html` and `tiquetes.html`, there is a configuration bar where you enter the server's IP address and port:
-
-```
-http://192.168.1.105:3000
-```
-
-This address is automatically saved in `localStorage` (`apex_print_ip`).
-
-### Endpoints consumed by the frontend
-
-| Method | Path | Description |
-
-|---|---|---|
-
-| `GET` | `/api/print/health` | Connection test |
-
-| `POST` | `/api/print/pilot` | Print pilot ticket |
-
-| `POST` | `/api/print/vehicle` | Print vehicle ticket |
-
-| `POST` | `/api/print/turno` | Print shift ticket |
-
-
-### Example Payload — Shift
 ```json
 {
-"type": "shift",
-"shift": "T-003",
-"name": "L. HAMILTON",
-"vehicle": "Porsche 911 GT3 RS",
-"duration": 20,
-"createdAt": "10:45:32",
-"date": "29/04/2024 10:45:32"
+  "ConnectionStrings": {
+    "Default": "server=TU_HOST;port=3306;database=kepler_core;user=TU_USUARIO;password=TU_PASSWORD"
+  },
+  "SMTP": {
+    "Host": "",
+    "Port": "587",
+    "User": "",
+    "Pass": ""
+  }
 }
 ```
 
-### Printer Driver
-Install the `.exe` driver file on the PC where the Xprinter is connected via USB. Once installed:
-1. Verify that the Xprinter appears in **Devices and Printers**
-2. Print a test page to confirm
-3. Note the COM port in **Device Manager → Ports (COM & LPT)**
-4. Configure the port in `appsettings.json` of the backend:
+> El SMTP es opcional. Si se deja vacío, el sistema funciona igual y omite el envío de emails.
 
-```json
-"Printer": {
-"Port": "COM3"
-}
+### 3. Crear la base de datos
+
+```bash
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS kepler_core CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+### 4. Aplicar migraciones (Entity Framework)
+
+```bash
+dotnet ef database update
+```
+
+> Si no tienes las herramientas de EF instaladas:
+> ```bash
+> dotnet tool install --global dotnet-ef
+> ```
+
+### 5. Insertar un operador inicial
+
+Dado que el login compara contraseñas en texto plano, inserta el primer operador directamente en MySQL:
+
+```sql
+INSERT INTO operators (identifier, full_name, password_hash, role, created_at)
+VALUES ('ADMIN_01', 'Administrador', 'admin123', 'OPERATOR', NOW());
+```
+
+### 6. Ejecutar la aplicación
+
+```bash
+dotnet run
+```
+
+La app estará disponible en `https://localhost:5001` o `http://localhost:5000`.
+
+---
+
+## Flujo de uso
+
+```
+Login → Cola de Turnos → Iniciar Sesión
+                              ↓
+                    Driver Registry → Registrar participante
+                              ↓
+                    Buscar & Asignar → Asignar a la cola
+                              ↓
+                    Cola de Turnos → Avanzar / Cancelar turnos
+```
+
+1. **Login** — Inicia sesión con tu Marshal ID y contraseña.
+2. **Cola de Turnos** — Haz clic en **Iniciar Sesión** para abrir una sesión activa.
+3. **Driver Registry** — Registra participantes con nombre, Grid ID y License Grade.
+4. **Buscar & Asignar** — Busca un participante ya registrado y asígnalo a la cola.
+5. **Cola de Turnos** — Usa **Avanzar Cola** para pasar al siguiente turno. El timer muestra el tiempo en pista del turno activo.
+6. **Finalizar Sesión** — Cierra la sesión activa cuando termines.
+
+---
+
+## Estructura del proyecto
+
+```
+kepler/
+├── Controllers/
+│   ├── AuthController.cs         # Login, Logout, Crear operador, /Auth/Me
+│   ├── DashboardController.cs    # Driver Registry, Tiquetes, API participantes
+│   ├── QueueController.cs        # Cola, stats, avanzar, cancelar, sesión activa
+│   ├── SessionController.cs      # Iniciar y finalizar sesión
+│   └── HomeController.cs         # Redirección raíz
+│
+├── Models/
+│   ├── Operator.cs               # Usuario del sistema
+│   ├── Session.cs                # Sesión de atención
+│   ├── Participant.cs            # Persona registrada en el sistema
+│   ├── QueueEntry.cs             # Turno en la cola
+│   ├── StintSlot.cs              # Slots físicos de atención
+│   └── SessionLog.cs             # Auditoría de acciones
+│
+├── ViewModels/
+│   ├── LoginViewModel.cs
+│   ├── RegisterViewModel.cs
+│   └── QueueViewModel.cs
+│
+├── Services/
+│   ├── QueueService.cs           # Lógica de cola (add, advance, prioridad)
+│   ├── SessionService.cs         # Crear sesiones
+│   └── EmailService.cs           # Notificaciones (opcional)
+│
+├── Data/
+│   └── AppDbContext.cs           # EF Core DbContext + mapeo de tablas
+│
+├── Views/
+│   ├── Auth/
+│   │   ├── Login.cshtml          # Pantalla de login
+│   │   └── Register.cshtml       # Crear nuevo operador (requiere auth)
+│   ├── Dashboard/
+│   │   ├── Index.cshtml          # Driver Registry (registro de participantes)
+│   │   └── Tickets.cshtml        # Historial de tiquetes (localStorage)
+│   ├── Queue/
+│   │   └── Index.cshtml          # Cola de turnos en tiempo real
+│   └── Home/
+│       └── Index.cshtml          # Redirección automática
+│
+├── wwwroot/
+│   ├── js/
+│   │   ├── shared.js             # Sidebar, topbar, toasts, print — todas las páginas
+│   │   ├── login.js              # UX del login
+│   │   ├── registro.js           # Lógica Driver Registry
+│   │   ├── cola.js               # Lógica Cola de Turnos
+│   │   └── tiquetes.js           # Lógica Tiquetes (localStorage)
+│   └── css/
+│       └── styles.css            # Estilos globales
+│
+├── appsettings.json              # Cadena de conexión y SMTP
+├── Program.cs                    # Configuración de la app
+└── Kepler-Trackline-Alliance.csproj
 ```
 
 ---
 
-## How to run
+## Rutas de la aplicación
 
-1. Clone or extract the project
-2. Ensure your PC and mobile device are on the same Wi-Fi network
-3. Open `index.html` in your browser (or serve it using any static server)
-4. Log in with any Marshal ID and password (mock—connect to the live backend when available)
-5. Configure the print server IP address in the field in the top bar
-
-> For production, it is recommended to serve the files as static files using IIS, Nginx, or ASP.NET Core. Do not open the `.html` file directly from the file system, as some browsers restrict access to `localStorage` for the `file://` protocol.
+| Ruta | Método | Auth | Descripción |
+|---|---|---|---|
+| `/` | GET | No | Redirige al login o a la cola |
+| `/Auth/Login` | GET/POST | No | Login de operadores |
+| `/Auth/Logout` | GET | No | Cerrar sesión |
+| `/Auth/Register` | GET/POST | Sí | Crear nuevo operador |
+| `/Auth/Me` | GET | Sí | Info del operador actual (JSON) |
+| `/Queue/Index` | GET | Sí | Cola de turnos |
+| `/Queue/GetQueue` | GET | Sí | Estado de la cola (JSON) |
+| `/Queue/GetStats` | GET | Sí | Estadísticas de la sesión (JSON) |
+| `/Queue/GetActiveSession` | GET | Sí | Sesión activa actual (JSON) |
+| `/Queue/Advance` | POST | Sí | Avanzar la cola |
+| `/Queue/Cancel` | POST | Sí | Cancelar un turno |
+| `/Queue/AddParticipant` | POST | Sí | Agregar participante a la cola |
+| `/Dashboard/Index` | GET | Sí | Driver Registry |
+| `/Dashboard/Tickets` | GET | Sí | Historial de tiquetes |
+| `/Dashboard/GetParticipants` | GET | Sí | Lista de participantes (JSON) |
+| `/Dashboard/RegisterParticipant` | POST | Sí | Registrar nuevo participante |
+| `/Dashboard/AssignToQueue` | POST | Sí | Asignar participante a cola activa |
+| `/Session/Start` | POST | Sí | Iniciar sesión de atención |
+| `/Session/End` | POST | Sí | Finalizar sesión de atención |
 
 ---
 
-## Connecting to the live backend (pending)
+## Modelo de base de datos
 
-Currently, the frontend uses mock data. To connect to the ASP.NET Core backend, replace the functions marked with the comment `// — Here you connect to your actual API —` in each JS file:
+### Diagrama de relaciones
 
-- `js/login.js` → `POST /api/auth/login`
-- `js/registro.js` → `POST /api/pilotos`, `POST /api/vehiculos`, `POST /api/turnos`
-- `js/cola.js` → `GET /api/turnos/cola` (SignalR hub)
+```
+operators ──< sessions ──< queue_entries >── participants
+                │
+                └──< session_log
+```
+
+### Tablas
+
+#### `operators`
+Usuarios del sistema que abren sesiones y gestionan la cola.
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id` | INT UNSIGNED PK | Identificador único |
+| `identifier` | VARCHAR(50) UNIQUE | Código de acceso (`MARSHAL_01`) |
+| `full_name` | VARCHAR(120) | Nombre completo |
+| `password_hash` | VARCHAR(255) | Contraseña (texto plano en esta versión) |
+| `role` | VARCHAR(20) | `OPERATOR` |
+| `created_at` | DATETIME | Fecha de registro |
+
+#### `sessions`
+Una sesión representa una jornada de atención. Toda la cola pertenece a una sesión `LIVE`.
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id` | INT UNSIGNED PK | Identificador único |
+| `operator_id` | INT UNSIGNED FK | Operador que la abrió |
+| `session_code` | VARCHAR(50) | Código generado automáticamente |
+| `status` | VARCHAR(20) | `STANDBY` · `LIVE` · `COMPLETED` |
+| `started_at` | DATETIME | Inicio real |
+| `ended_at` | DATETIME | Cierre |
+| `created_at` | DATETIME | Fecha de creación |
+
+#### `participants`
+Personas registradas. Su `grade` determina la prioridad en la cola.
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id` | INT UNSIGNED PK | Identificador único |
+| `full_name` | VARCHAR(120) | Nombre completo |
+| `grid_id` | VARCHAR(20) UNIQUE | Código único (`KR-460-THX`) |
+| `grade` | VARCHAR(2) | `S` (alta prioridad) · `A` · `B` |
+| `season_points` | INT | Puntaje acumulado |
+| `registered_at` | DATETIME | Fecha de registro |
+
+**Regla de prioridad:**
+
+| Grade | Priority en cola | Comportamiento |
+|---|---|---|
+| `S` | `HIGH` | Entra antes que todos los NORMAL |
+| `A` | `NORMAL` | Orden de llegada |
+| `B` | `NORMAL` | Orden de llegada |
+
+#### `queue_entries`
+Tabla principal. Cada fila es un turno en la cola de una sesión.
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id` | INT UNSIGNED PK | Identificador único |
+| `session_id` | INT UNSIGNED FK | Sesión a la que pertenece |
+| `participant_id` | INT UNSIGNED FK | Participante en turno |
+| `position` | INT | Posición en la cola |
+| `priority` | VARCHAR(10) | `HIGH` · `NORMAL` |
+| `status` | VARCHAR(20) | Ver ciclo de vida |
+| `estimated_start_s` | DECIMAL | Tiempo estimado de inicio (segundos) |
+| `session_time_s` | DECIMAL | Duración real de atención (segundos) |
+| `entered_at` | DATETIME | Cuando ingresó a la cola |
+| `started_at` | DATETIME | Cuando pasó a ON_TRACK |
+| `completed_at` | DATETIME | Cuando finalizó |
+
+**Ciclo de vida de un turno:**
+
+```
+QUEUED → UP_NEXT → ON_TRACK → COMPLETED
+   ↓                   ↓
+CANCELLED          CANCELLED
+```
+
+**Restricción:** `UNIQUE (session_id, participant_id)` — un participante no puede estar dos veces en la misma sesión activa.
+
+#### `session_log`
+Auditoría completa de todas las acciones por sesión.
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id` | INT UNSIGNED PK | Identificador único |
+| `session_id` | INT UNSIGNED FK | Sesión relacionada |
+| `operator_id` | INT UNSIGNED FK | Operador que ejecutó la acción |
+| `action_type` | VARCHAR(50) | Tipo de acción |
+| `notes` | TEXT | Detalle de la acción |
+| `created_at` | DATETIME | Timestamp |
+
+**Tipos de acción registrados:** `ENTRY_ADDED` · `ENTRY_ON_TRACK` · `ENTRY_PROMOTED` · `ENTRY_COMPLETED` · `ENTRY_CANCELLED`
 
 ---
 
-## Responsive
+## Lógica de negocio
 
-The design is fully responsive:
+### Insertar participante con prioridad
 
-- **Desktop:** Visible sidebar, two-column layout
-- **Tablet:** Collapsible sidebar with hamburger menu
-- **Mobile:** Single-column view, sidebar as a side drawer
+```
+Si grade == "S" → priority = HIGH
+  → Buscar la primera posición QUEUED/NORMAL
+  → Desplazar todas las posiciones >= ese punto +1
+  → Insertar en esa posición
+Si grade != "S" → priority = NORMAL
+  → Insertar al final (MAX(position) + 1)
+```
 
-Breakpoints inherited from Bootstrap 5 (`sm`, `lg`).
+### Avanzar la cola
+
+```
+1. Completar ON_TRACK actual → status = COMPLETED
+2. Promover UP_NEXT → status = ON_TRACK
+   (si no hay UP_NEXT, promover el primero de QUEUED)
+3. Promover el siguiente QUEUED → status = UP_NEXT
+```
+
+---
+
+## Dependencias NuGet
+
+| Paquete | Versión |
+|---|---|
+| `Microsoft.EntityFrameworkCore` | 9.0.0 |
+| `Pomelo.EntityFrameworkCore.MySql` | 9.0.0 |
+
+---
+
+## Notas de la versión 2.0
+
+- Login sin hasheo de contraseñas (comparación directa)
+- Registro de participantes independiente de la sesión activa
+- Endpoint `/Dashboard/AssignToQueue` separado del registro
+- Serialización JSON en camelCase explícito en todos los endpoints
+- Manejo global de errores — ninguna excepción cae al usuario sin respuesta controlada
+- Nombre del operador visible en el sidebar via `/Auth/Me`
+- Botón "Finalizar Sesión" en la Cola de Turnos
+- Panel "Próximo en Cola" en tiempo real
+
+---
+
+*KEPLER / TRACKLINE ALLIANCE — v2.0*

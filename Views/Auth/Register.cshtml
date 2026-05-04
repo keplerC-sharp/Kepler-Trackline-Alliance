@@ -1,0 +1,515 @@
+@model Kepler_Trackline_Alliance.ViewModels.RegisterViewModel
+@{
+    Layout = null;
+    ViewData["Title"] = "Register — APEX CONTROL";
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APEX CONTROL — Operational Enrollment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;0,900;1,700&family=Barlow:wght@400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --red:      #E8190A;
+  --red-glow: rgba(232,25,10,0.25);
+  --bg:       #0A0A0B;
+  --bg2:      #111115;
+  --panel:    #15151A;
+  --border:   rgba(255,255,255,0.08);
+  --text:     #F0F0F8;
+  --text-dim: #6B6B80;
+  --text-muted: #32323F;
+  --green:    #00FF88;
+  --cyan:     #00E5FF;
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-body:    'Barlow', sans-serif;
+  --font-mono:    'Share Tech Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── BACKGROUND ── */
+.bg-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+.bg-image {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, rgba(10,10,11,0.92) 0%, rgba(10,10,11,0.75) 50%, rgba(10,10,11,0.92) 100%),
+    url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60"><path d="M30 0 L60 30 L30 60 L0 30Z" fill="none" stroke="rgba(232,25,10,0.04)" stroke-width="1"/></svg>') repeat;
+  background-size: cover, 60px 60px;
+}
+
+.bg-track {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 55%;
+  background: linear-gradient(to top, rgba(232,25,10,0.06), transparent);
+}
+
+.bg-track::before, .bg-track::after {
+  content: '';
+  position: absolute;
+  bottom: -20%; width: 2px;
+  height: 120%;
+  background: linear-gradient(to top, var(--red), transparent);
+  animation: trackLine 3s ease-in-out infinite;
+}
+.bg-track::before { left: 28%; transform: skewX(-12deg); }
+.bg-track::after  { right: 28%; transform: skewX(12deg); animation-delay: 1.5s; }
+
+@@keyframes trackLine {
+  0%, 100% { opacity: 0.2; }
+  50%       { opacity: 0.6; }
+}
+
+/* corner brackets */
+.corner {
+  position: fixed;
+  width: 40px; height: 40px;
+  z-index: 2;
+  opacity: 0.4;
+}
+.corner--tl { top: 20px; left: 20px; border-top: 1px solid var(--red); border-left: 1px solid var(--red); }
+.corner--tr { top: 20px; right: 20px; border-top: 1px solid var(--red); border-right: 1px solid var(--red); }
+.corner--bl { bottom: 20px; left: 20px; border-bottom: 1px solid var(--red); border-left: 1px solid var(--red); }
+.corner--br { bottom: 20px; right: 20px; border-bottom: 1px solid var(--red); border-right: 1px solid var(--red); }
+
+/* ── FORM WRAPPER ── */
+.register-wrap {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 480px;
+  padding: 24px;
+  animation: slideUp 0.6s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+@@keyframes slideUp {
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── HEADER ── */
+.reg-header {
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 7vw, 3.2rem);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--red);
+  line-height: 1;
+  text-shadow: 0 0 60px rgba(232,25,10,0.4);
+}
+
+.brand-sub {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.35em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+
+.brand-line {
+  width: 60px;
+  height: 2px;
+  background: var(--red);
+  margin: 12px auto 0;
+}
+
+/* ── CARD ── */
+.reg-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 36px 32px;
+  position: relative;
+  overflow: hidden;
+}
+
+.reg-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--red), transparent);
+}
+
+.reg-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(232,25,10,0.05), transparent 70%);
+  pointer-events: none;
+}
+
+/* ── FIELDS ── */
+.field {
+  margin-bottom: 20px;
+}
+
+.field-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.25em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.field-wrap {
+  position: relative;
+}
+
+.field-input {
+  width: 100%;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--text);
+  padding: 14px 44px 14px 16px;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.field-input::placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+.field-input:focus {
+  border-color: rgba(232,25,10,0.5);
+  background: rgba(232,25,10,0.04);
+  box-shadow: 0 0 0 3px rgba(232,25,10,0.08);
+}
+
+.field-input.valid {
+  border-color: rgba(0,255,136,0.4);
+  background: rgba(0,255,136,0.03);
+}
+
+.field-icon {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  transition: color 0.2s;
+  pointer-events: none;
+}
+
+.field-input:focus ~ .field-icon { color: var(--red); }
+.field-input.valid ~ .field-icon  { color: var(--green); }
+
+.field-hint {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-top: 6px;
+}
+
+/* validation errors */
+.field-error {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  color: var(--red);
+  text-transform: uppercase;
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* alert box for model errors */
+.alert-error {
+  background: rgba(232,25,10,0.08);
+  border: 1px solid rgba(232,25,10,0.25);
+  border-radius: 2px;
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  color: #ff6b6b;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+.alert-success {
+  background: rgba(0,255,136,0.08);
+  border: 1px solid rgba(0,255,136,0.25);
+  border-radius: 2px;
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  color: var(--green);
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+/* ── SUBMIT ── */
+.btn-create {
+  width: 100%;
+  padding: 16px;
+  background: var(--red);
+  border: none;
+  border-radius: 2px;
+  color: white;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: background 0.2s, transform 0.1s;
+  margin-top: 8px;
+}
+
+.btn-create::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.5s;
+}
+.btn-create:hover::before { transform: translateX(100%); }
+.btn-create:hover { background: #c41408; }
+.btn-create:active { transform: scale(0.99); }
+
+/* ── FOOTER LINKS ── */
+.reg-footer {
+  text-align: center;
+  margin-top: 24px;
+}
+
+.reg-footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: color 0.2s;
+}
+.reg-footer a:hover { color: var(--text); }
+
+.status-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+.status-dot-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--cyan);
+  animation: pulseDot 2s ease infinite;
+}
+@@keyframes pulseDot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* ── LEGAL ── */
+.legal {
+  text-align: center;
+  margin-top: 20px;
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  line-height: 1.6;
+}
+
+/* ── RESPONSIVE ── */
+@@media (max-width: 480px) {
+  .register-wrap { padding: 16px; }
+  .reg-card { padding: 24px 20px; }
+  .brand { font-size: 2rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-layer">
+  <div class="bg-image"></div>
+  <div class="bg-track"></div>
+</div>
+
+<div class="corner corner--tl"></div>
+<div class="corner corner--tr"></div>
+<div class="corner corner--bl"></div>
+<div class="corner corner--br"></div>
+
+<div class="register-wrap">
+
+  <div class="reg-header">
+    <div class="brand">APEX CONTROL</div>
+    <div class="brand-line"></div>
+    <div class="brand-sub">Operational Enrollment</div>
+  </div>
+
+  <div class="reg-card">
+
+    @* Success message *@
+    @if (TempData["Success"] != null)
+    {
+      <div class="alert-success">✓ @TempData["Success"]</div>
+    }
+
+    @* Model-level errors *@
+    @if (!ViewData.ModelState.IsValid)
+    {
+      foreach (var error in ViewData.ModelState
+               .Where(x => x.Key == "" || x.Key == "Identifier")
+               .SelectMany(x => x.Value!.Errors))
+      {
+        <div class="alert-error">⚠ @error.ErrorMessage</div>
+      }
+    }
+
+    <form asp-action="Register" asp-controller="Auth" method="post" id="registerForm">
+      @Html.AntiForgeryToken()
+
+      @* Full Name *@
+      <div class="field">
+        <label class="field-label" asp-for="FullName">Pilot/Marshal Full Name</label>
+        <div class="field-wrap">
+          <input class="field-input"
+                 asp-for="FullName"
+                 placeholder="Alexander Vance"
+                 autocomplete="name"
+                 oninput="validateField(this)" />
+          <span class="field-icon">✓</span>
+        </div>
+        <span class="field-error" asp-validation-for="FullName"></span>
+      </div>
+
+      @* Identifier (Marshal ID) *@
+      <div class="field">
+        <label class="field-label" asp-for="Identifier">Marshal ID / License Number</label>
+        <div class="field-wrap">
+          <input class="field-input"
+                 asp-for="Identifier"
+                 placeholder="FORMAT: PX-0000"
+                 autocomplete="username"
+                 oninput="validateField(this)" />
+          <span class="field-icon">⊞</span>
+        </div>
+        <span class="field-error" asp-validation-for="Identifier"></span>
+      </div>
+
+      @* Password *@
+      <div class="field">
+        <label class="field-label" asp-for="Password">Secure Access Key</label>
+        <div class="field-wrap">
+          <input class="field-input"
+                 asp-for="Password"
+                 type="password"
+                 placeholder="············"
+                 autocomplete="new-password"
+                 oninput="validateField(this)" />
+          <span class="field-icon">⊙</span>
+        </div>
+        <div class="field-hint">Minimum 4 characters / Technical complexity required</div>
+        <span class="field-error" asp-validation-for="Password"></span>
+      </div>
+
+      <button type="submit" class="btn-create">
+        Create Account
+      </button>
+    </form>
+
+    <div class="reg-footer">
+      <a href="/Auth/Login">
+        ⊳ Login if you already have an account
+      </a>
+      <div class="status-dots">
+        <div class="status-dot-item"><div class="dot"></div> Encrypted Data</div>
+        <div class="status-dot-item"><div class="dot" style="animation-delay:1s;"></div> Secure Protocol</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="legal">
+    By registering, you agree to the Track Operations Data<br>
+    Protocols and Security Clearance Terms.
+  </div>
+
+</div>
+
+<script>
+function validateField(el) {
+  const val = el.value.trim();
+  if (val.length >= (el.type === 'password' ? 4 : 2)) {
+    el.classList.add('valid');
+    el.classList.remove('invalid');
+  } else {
+    el.classList.remove('valid');
+  }
+}
+
+// Enter key submits
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('registerForm').submit();
+});
+</script>
+
+</body>
+</html>
