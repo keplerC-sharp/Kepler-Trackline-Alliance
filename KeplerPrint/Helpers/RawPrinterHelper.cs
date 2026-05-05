@@ -2,12 +2,16 @@ using System.Runtime.InteropServices;
 
 namespace KeplerPrint.Helpers
 {
+    /// <summary>
+    /// Wrapper for the Windows WinSpool API to allow raw byte dispatching to 
+    /// local thermal printers. Essential for ESC/POS command execution.
+    /// </summary>
     public static class RawPrinterHelper
     {
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
         private class DOCINFOA
         {
-            [MarshalAs(UnmanagedType.LPStr)] public string  pDocName   = "Ticket";
+            [MarshalAs(UnmanagedType.LPStr)] public string  pDocName   = "KeplerTicket";
             [MarshalAs(UnmanagedType.LPStr)] public string? pOutputFile;
             [MarshalAs(UnmanagedType.LPStr)] public string  pDataType  = "RAW";
         }
@@ -43,18 +47,22 @@ namespace KeplerPrint.Helpers
         private static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes,
             int dwCount, out int dwWritten);
 
+        /// <summary>
+        /// Sends a raw byte array directly to the specified printer spooler.
+        /// Handles low-level memory allocation and Win32 interop sequences.
+        /// </summary>
         public static void SendBytesToPrinter(string printerName, byte[] bytes)
         {
             if (!OpenPrinter(printerName, out var hPrinter, IntPtr.Zero))
                 throw new InvalidOperationException(
-                    $"No se pudo abrir '{printerName}'. " +
-                    $"Win32Error: {Marshal.GetLastWin32Error()}");
+                    $"Unable to open printer connection for '{printerName}'. " +
+                    $"Win32Error Code: {Marshal.GetLastWin32Error()}");
             try
             {
                 var di = new DOCINFOA();
                 if (!StartDocPrinter(hPrinter, 1, di))
                     throw new InvalidOperationException(
-                        $"StartDocPrinter falló. Win32Error: {Marshal.GetLastWin32Error()}");
+                        $"WinSpool StartDocPrinter sequence failed. Win32Error Code: {Marshal.GetLastWin32Error()}");
 
                 StartPagePrinter(hPrinter);
 

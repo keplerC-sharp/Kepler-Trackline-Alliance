@@ -1,25 +1,30 @@
-// ════════════════════════════════════════════════════════════════
-// REGISTRO — /Dashboard/Index
-// Endpoints: /Dashboard/GetParticipants, /Dashboard/RegisterParticipant
-//            /Dashboard/AssignToQueue, /Queue/GetActiveSession
-// ════════════════════════════════════════════════════════════════
+/**
+ * @file registro.js
+ * @description Driver registration and queue assignment module.
+ * Manages participant onboarding, vehicle data logging, and asynchronous search.
+ */
 
-let allParticipants   = [];
-let selectedPilot     = null;
-let selectedDuration  = 20;
-let activeSessionId   = 0;
-let lastRegisteredPilot   = null;
+let allParticipants     = [];
+let selectedPilot       = null;
+let selectedDuration    = 20;
+let activeSessionId     = 0;
+let lastRegisteredPilot = null;
 let lastRegisteredVehicle = null;
 
 const STATUS_TAG = { 'S': 'tag-red', 'A': 'tag-cyan', 'B': 'tag-yellow' };
 
 window.addEventListener('DOMContentLoaded', async () => {
-  await initLayout('registry');          // shared.js — carga sidebar + nombre
+  // Initialize shared layout components and fetch baseline data.
+  await initLayout('registry');
   await loadSessionInfo();
   await loadParticipants();
 });
 
-// ── Sesión activa ─────────────────────────────────────────────────────────
+// ── SESSION MANAGEMENT ───────────────────────────────────────────────────
+
+/**
+ * Checks for a LIVE session to enable or disable queue assignment capabilities.
+ */
 async function loadSessionInfo() {
   try {
     const res  = await fetch('/Queue/GetActiveSession');
@@ -30,15 +35,19 @@ async function loadSessionInfo() {
       activeSessionId = data.id;
       if (sc) sc.textContent = data.sessionCode;
     } else {
-      if (sc) sc.textContent = 'Sin sesión activa';
+      if (sc) sc.textContent = 'No Active Session';
     }
   } catch {
     const sc = document.getElementById('sessionCode');
-    if (sc) sc.textContent = 'Sin sesión activa';
+    if (sc) sc.textContent = 'Session Unknown';
   }
 }
 
-// ── Cargar participantes ──────────────────────────────────────────────────
+// ── DATA ACQUISITION ──────────────────────────────────────────────────────
+
+/**
+ * Fetches the entire participant master list for local filtering and auto-completion.
+ */
 async function loadParticipants() {
   const el = document.getElementById('recentEntriesList');
   try {
@@ -49,13 +58,16 @@ async function loadParticipants() {
     const total = document.getElementById('totalEntries');
     if (total) total.textContent = allParticipants.length;
   } catch (e) {
-    console.error('Error cargando participantes:', e);
-    if (el) el.innerHTML = `<div style="color:var(--red);font-family:var(--font-mono);font-size:0.7rem;text-align:center;padding:20px;">
-      Error al cargar participantes.<br>Verifica la conexión a la base de datos.</div>`;
+    console.error('Participant load failed:', e);
+    if (el) el.innerHTML = `
+      <div style="color:var(--red);font-family:var(--font-mono);font-size:0.7rem;text-align:center;padding:20px;">
+        Database connection error.<br>Verify network status.
+      </div>`;
   }
 }
 
-// ── TABS ──────────────────────────────────────────────────────────────────
+// ── NAVIGATION & TABS ─────────────────────────────────────────────────────
+
 function switchTab(tab, btn) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -63,14 +75,18 @@ function switchTab(tab, btn) {
   btn.classList.add('active');
 }
 
-// ── Lista de participantes registrados ────────────────────────────────────
+/**
+ * Renders the local history of registered participants.
+ */
 function renderRecentEntries() {
   const el = document.getElementById('recentEntriesList');
   if (!el) return;
 
   if (!allParticipants.length) {
-    el.innerHTML = `<div style="color:var(--text-muted);font-family:var(--font-mono);font-size:0.7rem;text-align:center;padding:20px;">
-      Sin participantes registrados aún</div>`;
+    el.innerHTML = `
+      <div style="color:var(--text-muted);font-family:var(--font-mono);font-size:0.7rem;text-align:center;padding:20px;">
+        No pilots registered in master list.
+      </div>`;
     return;
   }
 
@@ -101,7 +117,8 @@ function goToSearch(gridId) {
   setTimeout(() => selectPilotByGridId(gridId), 80);
 }
 
-// ── Validaciones ──────────────────────────────────────────────────────────
+// ── FORM VALIDATION ───────────────────────────────────────────────────────
+
 function validatePilotName(el) {
   const err = document.getElementById('pilotNameErr');
   const ok  = el.value.trim().length >= 2;
@@ -129,13 +146,18 @@ function checkDuplicateGridId(el) {
 
 function verifyGridId() {
   const val = document.getElementById('driverId')?.value.trim().toUpperCase();
-  if (!val) { showToast('Ingresa un Grid ID para verificar', 'error'); return; }
+  if (!val) { showToast('Enter Grid ID to verify.', 'error'); return; }
   const exists = allParticipants.some(p => p.gridId === val);
-  showToast(exists ? `Grid ID ${val} ya registrado` : `Grid ID ${val} disponible`,
+  showToast(exists ? `Grid ID ${val} already exists.` : `Grid ID ${val} is available.`,
             exists ? 'error' : 'success');
 }
 
-// ── REGISTRAR PARTICIPANTE (sin necesidad de sesión activa) ───────────────
+// ── REGISTRATION LOGIC ────────────────────────────────────────────────────
+
+/**
+ * Persists a new participant to the database. 
+ * Decoupled from session management to allow onboarding without an open track.
+ */
 async function commitPilotRegistration() {
   const nameEl   = document.getElementById('pilotName');
   const gridEl   = document.getElementById('driverId');
@@ -147,11 +169,11 @@ async function commitPilotRegistration() {
   const grade  = gradeEl?.value ?? '';
   const points = parseInt(pointsEl?.value) || 0;
 
-  if (!name)   { showToast('Nombre requerido', 'error');            return; }
-  if (!gridId) { showToast('Grid ID requerido', 'error');           return; }
-  if (!grade)  { showToast('Selecciona License Grade', 'error');    return; }
+  if (!name)   { showToast('Name is required.', 'error');            return; }
+  if (!gridId) { showToast('Grid ID is required.', 'error');         return; }
+  if (!grade)  { showToast('Select License Grade.', 'error');        return; }
   if (allParticipants.some(p => p.gridId === gridId)) {
-    showToast('Grid ID duplicado — ya existe ese participante', 'error'); return;
+    showToast('Grid ID collision. Pilot already registered.', 'error'); return;
   }
 
   try {
@@ -162,7 +184,7 @@ async function commitPilotRegistration() {
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    if (!data.ok) { showToast(data.error || 'Error al registrar', 'error'); return; }
+    if (!data.ok) { showToast(data.error || 'Registration failed.', 'error'); return; }
 
     const newPilot = { id: data.participantId, fullName: name, gridId, grade, seasonPoints: points };
     allParticipants.push(newPilot);
@@ -172,36 +194,36 @@ async function commitPilotRegistration() {
     const total = document.getElementById('totalEntries');
     if (total) total.textContent = allParticipants.length;
 
-    // Log
     const sl = document.getElementById('systemStatusLog');
-    if (sl) sl.textContent = `Registro: ${name} / ${gridId} / ${grade} — ${new Date().toLocaleTimeString()}`;
+    if (sl) sl.textContent = `Registry: ${name} / ${gridId} / ${grade} — ${new Date().toLocaleTimeString()}`;
 
-    saveTiquete({ tipo: 'PILOTO', nombre: name, driverId: gridId, licencia: grade, fecha: new Date().toLocaleString('es-CO') });
+    saveTiquete({ tipo: 'PILOT', nombre: name, driverId: gridId, licencia: grade, fecha: new Date().toLocaleString() });
 
-    // Mostrar botón de impresión
     const pa = document.getElementById('pilotPrintArea');
     if (pa) pa.style.display = 'block';
     const btn = document.getElementById('pilotPrintBtn');
-    if (btn) { btn.classList.remove('success-print','error-print','printing'); btn.innerHTML = '<i class="bi bi-printer-fill"></i> Imprimir Ticket Piloto'; }
+    if (btn) { 
+      btn.classList.remove('success-print','error-print','printing'); 
+      btn.innerHTML = '<i class="bi bi-printer-fill"></i> Print Pilot Ticket'; 
+    }
 
     clearPilotForm();
 
-    // Si hay sesión activa, ofrecer asignar inmediatamente a la cola
+    // Trigger proactive assignment offer if a session is currently running.
     if (activeSessionId) {
       showToastWithAction(
-        `${name} registrado. ¿Asignar a la cola ahora?`,
-        'Asignar',
+        `${name} registered. Assign to queue now?`,
+        'Assign',
         () => assignTurnByParticipant(newPilot)
       );
     } else {
-      showToast(`✓ ${name} registrado. Inicia una sesión en Cola para asignar turno.`, 'success');
+      showToast(`✓ ${name} registered. Open a session to assign turns.`, 'success');
     }
   } catch (err) {
-    showToast('Error de conexión: ' + err.message, 'error');
+    showToast('Network error during registration: ' + err.message, 'error');
   }
 }
 
-// Toast con botón de acción
 function showToastWithAction(msg, btnLabel, action) {
   const container = document.getElementById('toastContainer');
   if (!container) { showToast(msg, 'success'); return; }
@@ -210,7 +232,7 @@ function showToastWithAction(msg, btnLabel, action) {
   toast.className = 'toast-item success';
   toast.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
   toast.innerHTML = `
-    <div class="toast-label">Éxito</div>
+    <div class="toast-label">Success</div>
     <div>${msg}</div>
     <button id="${id}" style="background:var(--cyan);color:#000;border:none;padding:4px 10px;
       font-family:var(--font-mono);font-size:0.65rem;letter-spacing:0.1em;cursor:pointer;border-radius:2px;">
@@ -218,7 +240,11 @@ function showToastWithAction(msg, btnLabel, action) {
     </button>`;
   container.appendChild(toast);
   document.getElementById(id)?.addEventListener('click', () => { toast.remove(); action(); });
-  setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.3s'; setTimeout(()=>toast.remove(),300); }, 6000);
+  setTimeout(() => { 
+    toast.style.opacity='0'; 
+    toast.style.transition='opacity 0.3s'; 
+    setTimeout(()=>toast.remove(),300); 
+  }, 6000);
 }
 
 function clearPilotForm() {
@@ -234,21 +260,25 @@ function clearPilotForm() {
   });
 }
 
-// ── VEHÍCULO (solo local) ─────────────────────────────────────────────────
+// ── VEHICLE MANAGEMENT ────────────────────────────────────────────────────
+
 function commitVehicleRegistration() {
   const model  = document.getElementById('carModel')?.value.trim() ?? '';
   const cat    = document.getElementById('carCategory')?.value ?? '';
   const vin    = document.getElementById('chassisNum')?.value.trim() ?? '';
   const garage = document.getElementById('pitGarage')?.value.trim() ?? '';
-  if (!model) { showToast('Ingresa marca y modelo', 'error'); return; }
-  if (!cat)   { showToast('Selecciona una categoría', 'error'); return; }
+  if (!model) { showToast('Model and Brand required.', 'error'); return; }
+  if (!cat)   { showToast('Select a category.', 'error'); return; }
   lastRegisteredVehicle = { modelo: model, categoria: cat, vin: vin || 'N/A', garage: garage || 'N/A' };
-  showToast(`Vehículo ${model} registrado`, 'success');
+  showToast(`Vehicle ${model} logged.`, 'success');
   const vpa = document.getElementById('vehiclePrintArea');
   if (vpa) vpa.style.display = 'block';
   const btn = document.getElementById('vehiclePrintBtn');
-  if (btn) { btn.classList.remove('success-print','error-print','printing'); btn.innerHTML = '<i class="bi bi-printer-fill"></i> Imprimir Ticket Vehículo'; }
-  saveTiquete({ tipo: 'VEHICULO', modelo: model, categoria: cat, vin: vin||'N/A', garage: garage||'N/A', fecha: new Date().toLocaleString('es-CO') });
+  if (btn) { 
+    btn.classList.remove('success-print','error-print','printing'); 
+    btn.innerHTML = '<i class="bi bi-printer-fill"></i> Print Vehicle Ticket'; 
+  }
+  saveTiquete({ tipo: 'VEHICLE', modelo: model, categoria: cat, vin: vin||'N/A', garage: garage||'N/A', fecha: new Date().toLocaleString() });
 }
 
 function clearVehicleForm() {
@@ -259,7 +289,8 @@ function clearVehicleForm() {
   if (vpa) vpa.style.display = 'none';
 }
 
-// ── AUTOCOMPLETE ──────────────────────────────────────────────────────────
+// ── AUTO-COMPLETE INFRASTRUCTURE ──────────────────────────────────────────
+
 function handlePilotSearch(el) {
   const q  = el.value.trim().toLowerCase();
   const dd = document.getElementById('autocompleteDropdown');
@@ -270,7 +301,7 @@ function handlePilotSearch(el) {
     p.fullName.toLowerCase().includes(q) || p.gridId.toLowerCase().includes(q));
 
   if (!results.length) {
-    dd.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted);cursor:default;">Sin resultados</div>';
+    dd.innerHTML = '<div class="autocomplete-item" style="color:var(--text-muted);cursor:default;">No results found</div>';
     dd.classList.add('open');
     return;
   }
@@ -314,11 +345,12 @@ function selectPilotByGridId(gridId) {
   document.getElementById('ticketDisplay')?.style  && (document.getElementById('ticketDisplay').style.display  = 'none');
 }
 
-// ── ASIGNAR TURNO a la cola ───────────────────────────────────────────────
+// ── QUEUE ASSIGNMENT ──────────────────────────────────────────────────────
+
 async function assignTurn() {
-  if (!selectedPilot) { showToast('Selecciona un participante primero', 'error'); return; }
+  if (!selectedPilot) { showToast('Select a participant first.', 'error'); return; }
   if (!activeSessionId) {
-    showToast('No hay sesión activa. Ve a "Cola de Turnos" e inicia una sesión.', 'error');
+    showToast('No active session. Open a Track Session to assign turns.', 'error');
     return;
   }
   await assignTurnByParticipant(selectedPilot);
@@ -326,7 +358,7 @@ async function assignTurn() {
 
 async function assignTurnByParticipant(pilot) {
   if (!activeSessionId) {
-    showToast('No hay sesión activa para asignar el turno.', 'error');
+    showToast('No live track session available.', 'error');
     return;
   }
   try {
@@ -337,9 +369,9 @@ async function assignTurnByParticipant(pilot) {
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    if (!data.ok) { showToast(data.error || 'Error al asignar turno', 'error'); return; }
+    if (!data.ok) { showToast(data.error || 'Assignment failure.', 'error'); return; }
 
-    // Ticket visual
+    // Visual confirmation ticket generation.
     const ticketEl = document.getElementById('ticketDisplay');
     if (ticketEl) {
       ticketEl.style.display = 'block';
@@ -347,67 +379,65 @@ async function assignTurnByParticipant(pilot) {
         <div class="ticket">
           <div class="ticket-header">
             <div>
-              <div style="font-family:var(--font-mono);font-size:0.58rem;letter-spacing:0.15em;color:var(--text-muted);text-transform:uppercase;">Turno Asignado</div>
+              <div style="font-family:var(--font-mono);font-size:0.58rem;letter-spacing:0.15em;color:var(--text-muted);text-transform:uppercase;">Entry Confirmed</div>
               <div class="ticket-num-big">${escHtml(pilot.gridId)}</div>
             </div>
-            <span class="tag tag-yellow">EN COLA</span>
+            <span class="tag tag-yellow">QUEUED</span>
           </div>
           <div class="ticket-body">
-            <div class="ticket-row"><span class="ticket-key">Participante</span><span class="ticket-val">${escHtml(pilot.fullName)}</span></div>
+            <div class="ticket-row"><span class="ticket-key">Participant</span><span class="ticket-val">${escHtml(pilot.fullName)}</span></div>
             <div class="ticket-row"><span class="ticket-key">Grade</span><span class="ticket-val">${escHtml(pilot.grade)}</span></div>
-            <div class="ticket-row"><span class="ticket-key">Posición</span><span class="ticket-val">#${data.position}</span></div>
-            <div class="ticket-row"><span class="ticket-key">Sesión</span><span class="ticket-val">#${activeSessionId}</span></div>
-            <div class="ticket-row"><span class="ticket-key">Hora</span><span class="ticket-val">${new Date().toLocaleTimeString()}</span></div>
+            <div class="ticket-row"><span class="ticket-key">Position</span><span class="ticket-val">#${data.position}</span></div>
+            <div class="ticket-row"><span class="ticket-key">Session</span><span class="ticket-val">#${activeSessionId}</span></div>
+            <div class="ticket-row"><span class="ticket-key">Timestamp</span><span class="ticket-val">${new Date().toLocaleTimeString()}</span></div>
           </div>
         </div>
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
           <a href="/Queue/Index" class="btn-primary" style="text-decoration:none;">
-            <i class="bi bi-clock-history"></i> Ver Cola
+            <i class="bi bi-clock-history"></i> Monitor Queue
           </a>
         </div>`;
     }
 
     saveTiquete({
-      tipo: 'TURNO', turno: pilot.gridId, nombre: pilot.fullName,
+      tipo: 'TURN', turno: pilot.gridId, nombre: pilot.fullName,
       duracion: selectedDuration, createdAt: new Date().toLocaleTimeString(),
-      fecha: new Date().toLocaleString('es-CO')
+      fecha: new Date().toLocaleString()
     });
 
-    showToast(`✓ Turno asignado a ${pilot.fullName} — posición #${data.position}`, 'success');
+    showToast(`✓ Assigned ${pilot.fullName} to position #${data.position}`, 'success');
 
-    // Limpiar selección
     selectedPilot = null;
     document.getElementById('selectedPilotCard')?.style && (document.getElementById('selectedPilotCard').style.display = 'none');
     document.getElementById('assignSection')?.style     && (document.getElementById('assignSection').style.display = 'none');
     const ps = document.getElementById('pilotSearch');
     if (ps) ps.value = '';
   } catch (err) {
-    showToast('Error de conexión: ' + err.message, 'error');
+    showToast('Database synchronization error: ' + err.message, 'error');
   }
 }
 
-// ── Duration ──────────────────────────────────────────────────────────────
+// ── UTILITIES ─────────────────────────────────────────────────────────────
+
 function selectDuration(btn, min) {
   document.querySelectorAll('.duration-btn').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
   selectedDuration = min;
 }
 
-// ── Print ─────────────────────────────────────────────────────────────────
 function printPilotTicket() {
-  if (!lastRegisteredPilot) { showToast('No hay piloto registrado aún', 'error'); return; }
-  sendPrintJob('pilotPrintBtn', { tipo: 'piloto', ...lastRegisteredPilot });
+  if (!lastRegisteredPilot) { showToast('No pilot data found to print.', 'error'); return; }
+  sendPrintJob('pilotPrintBtn', { tipo: 'pilot', ...lastRegisteredPilot });
 }
 function printVehicleTicket() {
-  if (!lastRegisteredVehicle) { showToast('No hay vehículo registrado aún', 'error'); return; }
-  sendPrintJob('vehiclePrintBtn', { tipo: 'vehiculo', ...lastRegisteredVehicle });
+  if (!lastRegisteredVehicle) { showToast('No vehicle data found to print.', 'error'); return; }
+  sendPrintJob('vehiclePrintBtn', { tipo: 'vehicle', ...lastRegisteredVehicle });
 }
 
-// ── localStorage tiquetes ─────────────────────────────────────────────────
 function saveTiquete(data) {
   try {
     const list = JSON.parse(localStorage.getItem('apex_tiquetes') || '[]');
     list.unshift({ ...data, id: Date.now() });
     localStorage.setItem('apex_tiquetes', JSON.stringify(list));
-  } catch (e) { console.warn('No se pudo guardar tiquete:', e.message); }
+  } catch (e) { console.warn('Local audit logging failed:', e.message); }
 }

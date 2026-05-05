@@ -6,4 +6,5 @@ public class QueueViewModel
 {
     public List<QueueEntry> Entries  { get; set; } = new();
     public uint             SessionId { get; set; }
+    public string           SessionCode { get; set; } = "";
 }

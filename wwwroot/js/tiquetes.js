@@ -1,10 +1,12 @@
-// ════════════════════════════════════════
-// TIQUETES — /Dashboard/Index
-// ════════════════════════════════════════
+/**
+ * @file tiquetes.js
+ * @description Manages the local audit log of generated tickets.
+ * Handles filtering, rendering, reprinting, and purging of local records.
+ */
 
 let currentFilter = 'all';
 
-// Estilos extra para filtros y tiquetes card
+// Inject scoped styles for the ticket audit interface.
 const style = document.createElement('style');
 style.textContent = `
   .filter-btn {
@@ -38,9 +40,9 @@ style.textContent = `
     align-items: center;
     justify-content: space-between;
   }
-  .tiquete-card-header.turno   { border-top: 3px solid var(--cyan); }
-  .tiquete-card-header.piloto  { border-top: 3px solid var(--red); }
-  .tiquete-card-header.vehiculo{ border-top: 3px solid var(--yellow); }
+  .tiquete-card-header.turn     { border-top: 3px solid var(--cyan); }
+  .tiquete-card-header.pilot    { border-top: 3px solid var(--red); }
+  .tiquete-card-header.vehicle  { border-top: 3px solid var(--yellow); }
   .tiquete-type {
     font-family: var(--font-mono);
     font-size: 0.58rem;
@@ -54,9 +56,9 @@ style.textContent = `
     font-weight: 900;
     line-height: 1;
   }
-  .tiquete-id.turno    { color: var(--cyan); }
-  .tiquete-id.piloto   { color: var(--red); }
-  .tiquete-id.vehiculo { color: var(--yellow); }
+  .tiquete-id.turn    { color: var(--cyan); }
+  .tiquete-id.pilot   { color: var(--red); }
+  .tiquete-id.vehicle { color: var(--yellow); }
   .tiquete-card-body { padding: 14px 16px; }
   .tiquete-row {
     display: flex;
@@ -96,10 +98,16 @@ window.addEventListener('DOMContentLoaded', async () => {
   renderTiquetes();
 });
 
+/**
+ * Retrieves the local audit log from the browser's persistent storage.
+ */
 function getTiquetes() {
   return JSON.parse(localStorage.getItem('apex_tiquetes') || '[]');
 }
 
+/**
+ * Updates the active filter and refreshes the audit grid.
+ */
 function setFilter(f, btn) {
   currentFilter = f;
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -107,6 +115,9 @@ function setFilter(f, btn) {
   renderTiquetes();
 }
 
+/**
+ * Dynamically builds and renders the audit record grid.
+ */
 function renderTiquetes() {
   const all  = getTiquetes();
   const list = currentFilter === 'all' ? all : all.filter(t => t.tipo === currentFilter);
@@ -122,19 +133,19 @@ function renderTiquetes() {
   empty.style.display = 'none';
 
   grid.innerHTML = list.map((t, i) => {
-    const tipo = (t.tipo || 'TURNO').toLowerCase();
+    const tipoClass = (t.tipo || 'TURN').toLowerCase();
     const rows = buildRows(t);
     const btnId = `print-btn-${t.id || i}`;
     return `
       <div class="col-12 col-sm-6 col-xl-4">
         <div class="tiquete-card">
-          <div class="tiquete-card-header ${tipo}">
+          <div class="tiquete-card-header ${tipoClass}">
             <div>
-              <div class="tiquete-type">${t.tipo || 'TURNO'}</div>
-              <div class="tiquete-id ${tipo}">${getTiqueteId(t)}</div>
+              <div class="tiquete-type">${t.tipo || 'TURN'}</div>
+              <div class="tiquete-id ${tipoClass}">${getTiqueteId(t)}</div>
             </div>
             <span class="tag ${getTipoTag(t.tipo)}">
-              ${t.tipo === 'TURNO' ? 'PENDIENTE' : 'REGISTRADO'}
+              ${t.tipo === 'TURN' ? 'QUEUED' : 'ARCHIVED'}
             </span>
           </div>
           <div class="tiquete-card-body">
@@ -142,7 +153,7 @@ function renderTiquetes() {
           </div>
           <div class="tiquete-actions">
             <button class="btn-print" id="${btnId}" onclick='reprintTiquete(${JSON.stringify(t).replace(/'/g,"&#39;")}, "${btnId}")'>
-              <i class="bi bi-printer-fill"></i> Reimprimir
+              <i class="bi bi-printer-fill"></i> Reprint
             </button>
             <button class="btn-outline" style="padding:8px 12px;" onclick="deleteTiquete(${t.id || i})">
               <i class="bi bi-trash"></i>
@@ -155,36 +166,39 @@ function renderTiquetes() {
 }
 
 function getTiqueteId(t) {
-  if (t.tipo === 'TURNO')    return t.turno || 'T-???';
-  if (t.tipo === 'PILOTO')   return t.driverId || 'ID-???';
-  if (t.tipo === 'VEHICULO') return t.vin || 'VIN-???';
+  if (t.tipo === 'TURN')    return t.turno || 'T-???';
+  if (t.tipo === 'PILOT')   return t.driverId || 'ID-???';
+  if (t.tipo === 'VEHICLE') return t.vin || 'VIN-???';
   return '—';
 }
 
 function getTipoTag(tipo) {
-  if (tipo === 'TURNO')    return 'tag-cyan';
-  if (tipo === 'PILOTO')   return 'tag-red';
-  if (tipo === 'VEHICULO') return 'tag-yellow';
+  if (tipo === 'TURN')    return 'tag-cyan';
+  if (tipo === 'PILOT')   return 'tag-red';
+  if (tipo === 'VEHICLE') return 'tag-yellow';
   return 'tag-gray';
 }
 
+/**
+ * Constructs the metadata display for each audit entry based on its classification.
+ */
 function buildRows(t) {
   const rows = [];
-  if (t.tipo === 'TURNO') {
-    rows.push(['Piloto',   t.nombre   || t.pilot   || '—']);
-    rows.push(['Vehículo', t.vehiculo || t.vehicle  || '—']);
-    rows.push(['Duración', (t.duracion || t.duration || '?') + ' min']);
-    rows.push(['Emitido',  t.createdAt || '—']);
-  } else if (t.tipo === 'PILOTO') {
-    rows.push(['Nombre',   t.nombre   || '—']);
-    rows.push(['Licencia', t.licencia || '—']);
-    rows.push(['Email',    t.email    || '—']);
-  } else if (t.tipo === 'VEHICULO') {
-    rows.push(['Modelo',    t.modelo    || '—']);
-    rows.push(['Categoría', t.categoria || '—']);
-    rows.push(['Garage',    t.garage    || '—']);
+  if (t.tipo === 'TURN') {
+    rows.push(['Pilot',    t.nombre   || t.pilot   || '—']);
+    rows.push(['Vehicle',  t.vehiculo || t.vehicle  || '—']);
+    rows.push(['Duration', (t.duracion || t.duration || '?') + ' min']);
+    rows.push(['Issued',   t.createdAt || '—']);
+  } else if (t.tipo === 'PILOT') {
+    rows.push(['Legal Name', t.nombre   || '—']);
+    rows.push(['Grade',      t.licencia || '—']);
+    rows.push(['Registry ID', t.driverId || '—']);
+  } else if (t.tipo === 'VEHICLE') {
+    rows.push(['Specs',      t.modelo    || '—']);
+    rows.push(['Class',      t.categoria || '—']);
+    rows.push(['Pit Garage', t.garage    || '—']);
   }
-  rows.push(['Fecha', t.fecha || '—']);
+  rows.push(['Timestamp', t.fecha || '—']);
   return rows.map(([k, v]) => `
     <div class="tiquete-row">
       <span class="tiquete-key">${k}</span>
@@ -193,22 +207,31 @@ function buildRows(t) {
   `).join('');
 }
 
+/**
+ * Re-dispatches a print job to the local network printer.
+ */
 function reprintTiquete(t, btnId) {
-  const tipo = (t.tipo || 'turno').toLowerCase();
+  const tipo = (t.tipo || 'turn').toLowerCase();
   sendPrintJob(btnId, { tipo, ...t });
 }
 
+/**
+ * Removes a specific record from the local audit log.
+ */
 function deleteTiquete(id) {
   let list = getTiquetes();
   list = list.filter(t => t.id !== id);
   localStorage.setItem('apex_tiquetes', JSON.stringify(list));
   renderTiquetes();
-  showToast('Tiquete eliminado', 'info');
+  showToast('Record purged from local storage.', 'info');
 }
 
+/**
+ * Wipes the entire local audit history.
+ */
 function clearAll() {
-  if (!confirm('¿Eliminar todos los tiquetes?')) return;
+  if (!confirm('Permanent Action: Are you sure you want to purge the entire audit log?')) return;
   localStorage.removeItem('apex_tiquetes');
   renderTiquetes();
-  showToast('Historial limpiado', 'info');
+  showToast('Audit history purged.', 'info');
 }

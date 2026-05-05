@@ -1,11 +1,11 @@
 @model Kepler_Trackline_Alliance.ViewModels.RegisterViewModel
 @{ Layout = null; }
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>APEX CONTROL — Nuevo Operador</title>
+<title>KEPLER CONTROL — Operator Onboarding</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;0,900;1,700&family=Barlow:wght@400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -24,10 +24,11 @@
     <div class="main-content">
 
       <div class="page-heading">
-        <h1>Registrar Operador</h1>
-        <p>Crear cuenta de acceso para nuevo operador del sistema</p>
+        <h1>Marshal Onboarding</h1>
+        <p>Initialize secure access credentials for new track operations personnel</p>
       </div>
 
+      <!-- SUCCESS FEEDBACK -->
       @if (TempData["Success"] != null)
       {
         <div class="alert" style="background:rgba(0,255,136,0.1); border:1px solid var(--green);
@@ -38,16 +39,17 @@
       }
 
       <div class="row">
+        <!-- FORM COLUMN -->
         <div class="col-lg-5">
           <div class="z-panel">
             <div class="panel-title">
               <i class="bi bi-person-plus" style="color:var(--cyan);"></i>
-              Nuevo Operador
+              New Operator Record
             </div>
             <div class="panel-body">
               <form asp-action="Register" asp-controller="Auth" method="post">
                 <div class="z-field">
-                  <label class="field-label">Marshal ID</label>
+                  <label class="field-label">Marshal Identifier (ID)</label>
                   <input class="z-field-input" asp-for="Identifier" type="text"
                     placeholder="MARSHAL_01" autocomplete="off">
                   <span asp-validation-for="Identifier"
@@ -55,15 +57,15 @@
                 </div>
 
                 <div class="z-field">
-                  <label class="field-label">Nombre Completo</label>
+                  <label class="field-label">Legal Full Name</label>
                   <input class="z-field-input" asp-for="FullName" type="text"
-                    placeholder="Juan Pérez">
+                    placeholder="e.g. John Doe">
                   <span asp-validation-for="FullName"
                     style="color:var(--red); font-family:var(--font-mono); font-size:0.65rem;"></span>
                 </div>
 
                 <div class="z-field">
-                  <label class="field-label">Contraseña</label>
+                  <label class="field-label">Access Key (Password)</label>
                   <input class="z-field-input" asp-for="Password" type="password"
                     placeholder="••••••••">
                   <span asp-validation-for="Password"
@@ -78,25 +80,29 @@
                 }
 
                 <button type="submit" class="btn-primary w-100" style="justify-content:center;">
-                  <i class="bi bi-person-plus-fill"></i> Crear Operador
+                  <i class="bi bi-person-plus-fill"></i> Provision Account
                 </button>
               </form>
             </div>
           </div>
         </div>
 
+        <!-- INFORMATION COLUMN -->
         <div class="col-lg-7">
           <div class="z-panel">
             <div class="panel-title">
               <i class="bi bi-info-circle" style="color:var(--cyan);"></i>
-              Información
+              Security Protocol
             </div>
             <div class="panel-body">
               <p style="font-family:var(--font-mono); font-size:0.72rem; color:var(--text-dim); line-height:1.7;">
-                Los operadores creados aquí tendrán acceso completo al sistema con rol <span style="color:var(--cyan);">OPERATOR</span>.
+                Operators initialized via this interface will be granted comprehensive administrative rights under the <span style="color:var(--cyan);">OPERATOR</span> role.
               </p>
               <p style="font-family:var(--font-mono); font-size:0.72rem; color:var(--text-dim); line-height:1.7;">
-                El Marshal ID debe ser único y es el que se usa para iniciar sesión.
+                The <span style="color:var(--cyan);">Marshal ID</span> must be globally unique within the database and serves as the primary authentication identifier.
+              </p>
+              <p style="font-family:var(--font-mono); font-size:0.72rem; color:var(--text-dim); line-height:1.7;">
+                Password complexity is enforced at the database level using adaptive hashing algorithms.
               </p>
             </div>
           </div>
@@ -106,16 +112,20 @@
     </div>
   </div>
 
+  <!-- INFRASTRUCTURE STATUS -->
   <div class="bottom-bar">
-    <div class="bottom-bar-item"><div class="dot blue"></div>Sat-Link Stable</div>
-    <div class="bottom-bar-item"><div class="dot"></div>Local Server Nominal</div>
+    <div class="bottom-bar-item"><div class="dot blue"></div>Telemetry Link: Stable</div>
+    <div class="bottom-bar-item"><div class="dot"></div>Core Services: Nominal</div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="~/js/shared.js"></script>
 <script>
-window.addEventListener('DOMContentLoaded', async () => { await initLayout(''); });
+/**
+ * Orchestrates the secure layout initialization upon DOM readiness.
+ */
+window.addEventListener('DOMContentLoaded', async () => { await initLayout('operators'); });
 </script>
 </body>
 </html>
