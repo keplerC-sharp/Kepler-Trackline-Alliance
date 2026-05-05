@@ -8,7 +8,7 @@ let timerTick        = null;
 let currentOnTrackId = null;
 
 window.addEventListener('DOMContentLoaded', async () => {
-  await initLayout('cola');   // shared.js — async, espera el nombre del operador
+  await initLayout('cola');
 
   const sid = document.getElementById('activeSessionId');
   if (sid) sessionId = parseInt(sid.value) || 0;
@@ -36,10 +36,11 @@ async function loadQueue() {
     updateStatsFromQueue(data);
   } catch (err) {
     console.error('Error cargando cola:', err);
+    showToast('Error al cargar la cola', 'error');
   }
 }
 
-// ── Stats (completados/cancelados vienen del servidor) ────────────────────
+// ── Stats ─────────────────────────────────────────────────────────────────
 async function loadStats() {
   if (!sessionId) return;
   try {
@@ -91,6 +92,10 @@ function renderQueueList(entries) {
           </div>
           <div class="queue-meta">
             <span class="tag ${tagCls}">${tagTxt}</span>
+            ${isOn ? `
+              <button class="tag tag-blue ms-auto" onclick="openComment(${q.id})" style="border:none;cursor:pointer;">
+                <i class="bi bi-chat-dots-fill"></i> Comentario
+              </button>` : ''}
           </div>
         </div>
         ${!isOn ? `
@@ -135,12 +140,10 @@ function updateCurrentTurn(entries) {
       </div>
       <div style="margin-top:12px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;">
         <span class="tag tag-green">POSICIÓN #${active.position}</span>
-        ${active.participant?.grade === 'S'
-          ? '<span class="tag tag-red">PRIORIDAD</span>' : ''}
+        ${active.participant?.grade === 'S' ? '<span class="tag tag-red">PRIORIDAD</span>' : ''}
       </div>
     </div>`;
 
-  // Reiniciar timer si cambia el turno activo
   if (currentOnTrackId !== active.id) {
     clearInterval(timerTick); timerTick = null;
     currentOnTrackId = active.id;
@@ -162,7 +165,7 @@ function updateCurrentTurn(entries) {
   }
 }
 
-// ── Próximo en cola ───────────────────────────────────────────────────────
+// ── Próximo ───────────────────────────────────────────────────────────────
 function updateUpNext(entries) {
   const panel = document.getElementById('upNextPanel');
   if (!panel) return;
@@ -189,7 +192,7 @@ function updateUpNext(entries) {
     </div>`;
 }
 
-// ── Stats en tiempo real desde la cola ───────────────────────────────────
+// ── Stats ─────────────────────────────────────────────────────────────────
 function updateStatsFromQueue(entries) {
   const sp = document.getElementById('statPending');
   const sa = document.getElementById('statActive');
@@ -210,6 +213,13 @@ async function advanceQueue() {
     const data = await res.json();
     if (data.ok) {
       clearInterval(timerTick); timerTick = null; currentOnTrackId = null;
+
+      // ── Sonido y voz ──────────────────────────────────────────────────
+      playTurnAlert();
+      if (data.newOnTrack) {
+        announceParticipant(data.newOnTrack.fullName, data.newOnTrack.gridId);
+      }
+
       showToast('Cola avanzada', 'success');
       await loadQueue();
       await loadStats();
@@ -219,6 +229,28 @@ async function advanceQueue() {
   } catch (err) {
     showToast('Error de conexión: ' + err.message, 'error');
   }
+}
+
+// ── Audio alert ───────────────────────────────────────────────────────────
+function playTurnAlert() {
+  try {
+    const audio = new Audio('/sounds/pase-a-la-pista.mp3');
+    audio.volume = 0.8;
+    audio.play().catch(err => console.warn('Audio bloqueado por el navegador:', err));
+  } catch (e) { /* silencioso */ }
+}
+
+// ── Text-to-Speech ────────────────────────────────────────────────────────
+function announceParticipant(fullName, gridId) {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const msg  = new SpeechSynthesisUtterance(
+    `Turno para ${fullName}, código ${gridId}, por favor pasar a la pista`
+  );
+  msg.lang  = 'es-ES';
+  msg.rate  = 0.85;
+  msg.pitch = 1;
+  window.speechSynthesis.speak(msg);
 }
 
 // ── Cancelar entrada ──────────────────────────────────────────────────────
@@ -243,3 +275,65 @@ async function cancelEntry(entryId) {
     showToast('Error de conexión', 'error');
   }
 }
+
+// ── Modal comentario del asesor ───────────────────────────────────────────
+function openComment(entryId) {
+  // Crear modal inline si no existe
+  let modal = document.getElementById('commentModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'commentModal';
+    modal.style.cssText = `
+      position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9000;
+      display:flex;align-items:center;justify-content:center;`;
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `
+    <div style="background:var(--bg-card);padding:25px;border-radius:12px;width:90%;max-width:400px;
+      border:1px solid var(--border);box-shadow:0 10px 40px rgba(0,0,0,0.5);">
+      <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:700;margin-bottom:15px;color:var(--cyan);">
+        <i class="bi bi-chat-dots me-2"></i> Comentario del Asesor
+      </div>
+      <textarea id="commentText" style="width:100%;height:100px;background:var(--bg-body);color:var(--text);
+        border:1px solid var(--border);border-radius:6px;padding:10px;font-family:inherit;font-size:0.9rem;resize:none;"
+        placeholder="Escribe un comentario o nota..."></textarea>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+        <button class="btn-secondary" onclick="closeComment()" style="padding:6px 15px;font-size:0.8rem;">Cancelar</button>
+        <button class="btn-primary" onclick="saveComment(${entryId})" style="padding:6px 15px;font-size:0.8rem;">Guardar</button>
+      </div>
+    </div>`;
+  modal.style.display = 'flex';
+  setTimeout(() => document.getElementById('commentText')?.focus(), 100);
+}
+
+function closeComment() {
+  const modal = document.getElementById('commentModal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function saveComment(entryId) {
+  const text = document.getElementById('commentText')?.value.trim();
+  if (!text) { showToast('Escribe un comentario', 'error'); return; }
+  try {
+    const res = await fetch('/Queue/AddComment', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ entryId, comment: text })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.ok) {
+      showToast('Comentario guardado', 'success');
+      closeComment();
+    } else {
+      showToast(data.error || 'Error al guardar', 'error');
+    }
+  } catch (err) {
+    showToast('Error de conexión: ' + err.message, 'error');
+  }
+}
+
+// Cerrar modal con Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeComment();
+});
