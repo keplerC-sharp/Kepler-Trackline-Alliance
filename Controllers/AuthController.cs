@@ -45,8 +45,8 @@ public class AuthController : Controller
             var op = await _context.Operators
                 .FirstOrDefaultAsync(o => o.Identifier == model.Identifier);
 
-            // Comparación directa sin hasheo
-            if (op == null || op.PasswordHash != model.Password)
+            // Verificar contraseña usando BCrypt
+            if (op == null || !BCrypt.Net.BCrypt.Verify(model.Password, op.PasswordHash))
             {
                 ModelState.AddModelError("", "Credenciales inválidas");
                 return View(model);
@@ -125,7 +125,7 @@ public class AuthController : Controller
             {
                 Identifier   = model.Identifier,
                 FullName     = model.FullName,
-                PasswordHash = model.Password,  // sin hasheo
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(model.Password), // Contraseña hasheada
                 Role         = "OPERATOR"
             };
 
