@@ -1,33 +1,47 @@
 using Kepler_Trackline_Alliance.Data;
 using Kepler_Trackline_Alliance.Models;
+using Kepler_Trackline_Alliance.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Kepler_Trackline_Alliance.Controllers;
 
+/// <summary>
+/// Provides administrative views and APIs for participant management and historical data access.
+/// </summary>
 [Authorize]
 public class DashboardController : Controller
 {
     private readonly AppDbContext _context;
+    private readonly QueueService _queueService;
     private readonly ILogger<DashboardController> _logger;
 
-    public DashboardController(AppDbContext context, ILogger<DashboardController> logger)
+    public DashboardController(
+        AppDbContext context,
+        QueueService queueService,
+        ILogger<DashboardController> logger)
     {
-        _context = context;
-        _logger  = logger;
+        _context      = context;
+        _queueService = queueService;
+        _logger       = logger;
     }
 
-    // ── GET /Dashboard/Index — Driver Registry (formulario de participantes) ──
+    /// <summary>
+    /// Renders the Driver Registry view (Participant onboarding form).
+    /// </summary>
     public IActionResult Index() => View();
 
-    // ── GET /Dashboard/Tickets — Historial de tiquetes ──
+    /// <summary>
+    /// Renders the Ticket History view for audit and reprint purposes.
+    /// </summary>
     public IActionResult Tickets() => View();
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // API GET /Dashboard/GetParticipants
-    // Lista todos los participantes registrados
-    // ─────────────────────────────────────────────────────────────────────────
+    /// <summary>
+    /// API: Retrieves the complete list of registered participants.
+    /// Used for auto-completion and master list displays.
+    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetParticipants()
     {
@@ -48,15 +62,15 @@ public class DashboardController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al obtener participantes");
+            _logger.LogError(ex, "Failed to fetch master participant list.");
             return Json(new List<object>());
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // API POST /Dashboard/RegisterParticipant
-    // Registra un participante en la BD (sin asignarlo a ninguna cola)
-    // ─────────────────────────────────────────────────────────────────────────
+    /// <summary>
+    /// API: Persists a new participant to the database.
+    /// Validates uniqueness of Grid ID to prevent duplicate records.
+    /// </summary>
     [HttpPost]
     public async Task<IActionResult> RegisterParticipant([FromBody] RegisterParticipantRequest req)
     {
@@ -65,7 +79,7 @@ public class DashboardController : Controller
             if (req == null
                 || string.IsNullOrWhiteSpace(req.FullName)
                 || string.IsNullOrWhiteSpace(req.GridId))
-                return Json(new { ok = false, error = "Nombre y Grid ID son requeridos" });
+                return Json(new { ok = false, error = "Full Name and Grid ID are mandatory." });
 
             var gridId = req.GridId.Trim().ToUpperInvariant();
 
@@ -73,7 +87,7 @@ public class DashboardController : Controller
                 .FirstOrDefaultAsync(p => p.GridId == gridId);
 
             if (existing != null)
-                return Json(new { ok = false, error = $"Grid ID {gridId} ya está registrado" });
+                return Json(new { ok = false, error = $"Grid ID {gridId} is already registered in the system." });
 
             var participant = new Participant
             {
@@ -90,108 +104,82 @@ public class DashboardController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al registrar participante {GridId}", req?.GridId);
-            return Json(new { ok = false, error = "Error interno al registrar" });
+            _logger.LogError(ex, "Registration failure for Grid ID: {GridId}", req?.GridId);
+            return Json(new { ok = false, error = "Internal server error during participant registration." });
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // API POST /Dashboard/AssignToQueue
-    // Asigna un participante ya existente a la cola de una sesión activa
-    // ─────────────────────────────────────────────────────────────────────────
+    /// <summary>
+    /// API: Assigns an existing participant to an active track session queue.
+    /// Offloads position and priority logic to the QueueService for consistency.
+    /// </summary>
     [HttpPost]
     public async Task<IActionResult> AssignToQueue([FromBody] AssignToQueueRequest req)
     {
         try
         {
             if (req == null)
-                return Json(new { ok = false, error = "Datos inválidos" });
+                return Json(new { ok = false, error = "Invalid request payload." });
 
-            // Verificar que la sesión exista y esté activa
             var session = await _context.Sessions
                 .FirstOrDefaultAsync(s => s.Id == req.SessionId && s.Status == "LIVE");
 
             if (session == null)
-                return Json(new { ok = false, error = "No hay sesión activa con ese ID" });
+                return Json(new { ok = false, error = "No active track session found for the provided ID." });
 
-            // Obtener participante
             var participant = await _context.Participants
                 .FirstOrDefaultAsync(p => p.Id == req.ParticipantId);
 
             if (participant == null)
-                return Json(new { ok = false, error = "Participante no encontrado" });
+                return Json(new { ok = false, error = "Participant record not found." });
 
-            // Verificar que no esté ya en cola activa
             var alreadyIn = await _context.QueueEntries.AnyAsync(q =>
                 q.SessionId     == req.SessionId &&
                 q.ParticipantId == participant.Id &&
                 q.Status != "COMPLETED" && q.Status != "CANCELLED");
 
             if (alreadyIn)
-                return Json(new { ok = false, error = "El participante ya está en la cola activa" });
+                return Json(new { ok = false, error = "Participant is already active in the current session." });
 
-            // Calcular posición
-            var lastPos = await _context.QueueEntries
-                .Where(q => q.SessionId == req.SessionId)
-                .MaxAsync(q => (int?)q.Position) ?? 0;
+            var operatorId = uint.TryParse(
+                User.FindFirstValue(ClaimTypes.NameIdentifier),
+                out var oid) ? oid : 1u;
 
-            var priority = participant.Grade == "S" ? "HIGH" : "NORMAL";
-            int position;
+            await _queueService.AddAsync(req.SessionId, participant, operatorId);
 
-            if (priority == "HIGH")
-            {
-                var firstNormal = await _context.QueueEntries
-                    .Where(q => q.SessionId == req.SessionId &&
-                                q.Status   == "QUEUED"      &&
-                                q.Priority == "NORMAL")
-                    .OrderBy(q => q.Position)
-                    .Select(q => (int?)q.Position)
-                    .FirstOrDefaultAsync();
+            var entry = await _context.QueueEntries
+                .Where(q => q.SessionId == req.SessionId
+                         && q.ParticipantId == participant.Id
+                         && q.Status == "QUEUED")
+                .OrderByDescending(q => q.EnteredAt)
+                .FirstAsync();
 
-                if (firstNormal.HasValue)
-                {
-                    await _context.QueueEntries
-                        .Where(q => q.SessionId == req.SessionId && q.Position >= firstNormal.Value)
-                        .ExecuteUpdateAsync(s => s.SetProperty(x => x.Position, x => x.Position + 1));
-                    position = firstNormal.Value;
-                }
-                else
-                {
-                    position = lastPos + 1;
-                }
-            }
-            else
-            {
-                position = lastPos + 1;
-            }
-
-            var entry = new QueueEntry
-            {
-                SessionId     = req.SessionId,
-                ParticipantId = participant.Id,
-                Position      = position,
-                Priority      = priority,
-                Status        = "QUEUED"
-            };
-
-            _context.QueueEntries.Add(entry);
-
-            _context.SessionLogs.Add(new SessionLog
-            {
-                SessionId  = req.SessionId,
-                ActionType = "ENTRY_ADDED",
-                Notes      = $"{participant.GridId} agregado a posición {position} via Dashboard"
-            });
-
-            await _context.SaveChangesAsync();
-
-            return Json(new { ok = true, entryId = entry.Id, position });
+            return Json(new { ok = true, entryId = entry.Id, position = entry.Position });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al asignar participante {PId} a sesión {SId}",
+            _logger.LogError(ex, "Queue assignment failed for Participant {PId} in Session {SId}",
                 req?.ParticipantId, req?.SessionId);
-            return Json(new { ok = false, error = "Error interno al asignar turno" });
+            return Json(new { ok = false, error = "Internal server error during queue assignment." });
+        }
+    }
+
+    /// <summary>
+    /// API: Returns the total count of registered participants in the master database.
+    /// Used for display metrics in the administrative dashboard.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> GetTotalParticipants()
+    {
+        try
+        {
+            var total = await _context.Participants.CountAsync();
+            return Json(new { total });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to count total participants.");
+            return Json(new { total = 0 });
         }
     }
 }

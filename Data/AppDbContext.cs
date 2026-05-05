@@ -3,6 +3,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kepler_Trackline_Alliance.Data
 {
+    /// <summary>
+    /// Centralized Database Context for the Kepler Trackline Alliance system.
+    /// Orchestrates ORM mappings between the domain models and the underlying MySQL schema.
+    /// </summary>
     public class AppDbContext : DbContext
     {
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
@@ -19,6 +23,7 @@ namespace Kepler_Trackline_Alliance.Data
             base.OnModelCreating(modelBuilder);
 
             // ── OPERATORS ────────────────────────────────────────────────
+            // Manages authorized personnel credentials and access roles.
             modelBuilder.Entity<Operator>(e =>
             {
                 e.ToTable("operators");
@@ -32,6 +37,7 @@ namespace Kepler_Trackline_Alliance.Data
             });
 
             // ── SESSIONS ─────────────────────────────────────────────────
+            // Tracks discrete blocks of track activity (e.g., morning sessions, race events).
             modelBuilder.Entity<Session>(e =>
             {
                 e.ToTable("sessions");
@@ -50,6 +56,7 @@ namespace Kepler_Trackline_Alliance.Data
             });
 
             // ── PARTICIPANTS ─────────────────────────────────────────────
+            // Persistent registry of all drivers registered in the alliance system.
             modelBuilder.Entity<Participant>(e =>
             {
                 e.ToTable("participants");
@@ -63,6 +70,7 @@ namespace Kepler_Trackline_Alliance.Data
             });
 
             // ── QUEUE_ENTRIES ─────────────────────────────────────────────
+            // Junction table managing the real-time state of the track queue.
             modelBuilder.Entity<QueueEntry>(e =>
             {
                 e.ToTable("queue_entries");
@@ -89,19 +97,21 @@ namespace Kepler_Trackline_Alliance.Data
                  .HasForeignKey(x => x.ParticipantId)
                  .OnDelete(DeleteBehavior.Restrict);
 
+                // Optimization: Indexes to support high-frequency SignalR broadcasts and polling.
                 e.HasIndex(x => new { x.SessionId, x.Status })
                  .HasDatabaseName("idx_queue_session_status");
 
                 e.HasIndex(x => new { x.SessionId, x.Position })
                  .HasDatabaseName("idx_queue_session_position");
 
-                // Sin índice UNIQUE: un participante puede reentrar si fue CANCELLED/COMPLETED.
-                // La validación de negocio (no duplicar activos) está en QueueController.
+                // Note: No unique constraint on SessionId/ParticipantId to allow re-entry
+                // after completion or cancellation. Concurrency control is handled in QueueService.
                 e.HasIndex(x => new { x.SessionId, x.ParticipantId })
                  .HasDatabaseName("idx_session_participant");
             });
 
             // ── STINT_SLOTS ───────────────────────────────────────────────
+            // Maps specific time/order slots to session queue entries.
             modelBuilder.Entity<StintSlot>(e =>
             {
                 e.ToTable("stint_slots");
@@ -128,6 +138,7 @@ namespace Kepler_Trackline_Alliance.Data
             });
 
             // ── SESSION_LOG ───────────────────────────────────────────────
+            // Immutable audit trail for all administrative actions taken during a session.
             modelBuilder.Entity<SessionLog>(e =>
             {
                 e.ToTable("session_log");
@@ -135,7 +146,7 @@ namespace Kepler_Trackline_Alliance.Data
                 e.Property(x => x.Id).HasColumnName("id");
                 e.Property(x => x.SessionId).HasColumnName("session_id");
                 e.Property(x => x.OperatorId).HasColumnName("operator_id");
-                e.Property(x => x.ActionType).HasColumnName("action_type");
+                e.Property(x => x.ActionType).HasColumnName("action_type").HasMaxLength(50);
                 e.Property(x => x.Notes).HasColumnName("notes");
                 e.Property(x => x.CreatedAt).HasColumnName("created_at");
 

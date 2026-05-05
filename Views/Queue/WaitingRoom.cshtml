@@ -1,0 +1,435 @@
+@{ Layout = null; }
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KEPLER TRACKLINE — Public Waiting Room</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,700;0,900;1,900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+  :root {
+    --red:#E8190A; --cyan:#00E5FF; --bg:#0A0A0B; --bg2:#111115;
+    --bg3:#18181E; --panel:#1C1C24; --border:#2A2A36;
+    --text:#E8E8F0; --text-dim:#6B6B80; --text-muted:#3A3A50;
+    --green:#00FF88; --yellow:#FFD600;
+    --font-display:'Barlow Condensed',sans-serif;
+    --font-mono:'Share Tech Mono',monospace;
+  }
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:var(--bg); color:var(--text);
+    font-family:var(--font-display);
+    min-height:100vh; overflow:hidden;
+  }
+
+  /* ── KINETIC BACKGROUND ── */
+  .video-bg {
+    position:fixed; inset:0; z-index:0; overflow:hidden;
+    background:var(--bg);
+  }
+  .video-bg video {
+    width:100%; height:100%; object-fit:cover;
+    opacity:0.3; filter:grayscale(0.8) contrast(1.2);
+  }
+  .bg-overlay {
+    position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(10,10,11,0.9) 0%, rgba(10,10,11,0.4) 50%, rgba(10,10,11,0.9) 100%);
+  }
+
+  .content { position:relative; z-index:1; display:flex; flex-direction:column; height:100vh; }
+
+  /* ── HUD HEADER ── */
+  .wr-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 32px; border-bottom:1px solid var(--border);
+    background:rgba(10,10,11,0.8); backdrop-filter:blur(8px);
+    flex-shrink:0;
+  }
+  .wr-brand {
+    font-size:1.4rem; font-weight:900; letter-spacing:0.08em; text-transform:uppercase;
+    font-style:italic;
+  }
+  .wr-brand span { color:var(--red); }
+  .wr-clock {
+    font-family:var(--font-mono); font-size:1.1rem; color:var(--text-dim); letter-spacing:0.1em;
+  }
+  .live-pill {
+    display:flex; align-items:center; gap:7px; background:rgba(0,255,136,0.1);
+    border:1px solid rgba(0,255,136,0.3); padding:6px 14px; border-radius:3px;
+    font-family:var(--font-mono); font-size:0.65rem; letter-spacing:0.15em; color:#00FF88;
+  }
+  .live-dot {
+    width:7px; height:7px; border-radius:50%; background:#00FF88;
+    animation:pulse 1s ease infinite;
+  }
+  @@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── DUAL COLUMN ARCHITECTURE ── */
+  .wr-body { display:flex; flex:1; min-height:0; gap:0; }
+
+  /* ── ACTIVE TURN COMPONENT ── */
+  .current-panel {
+    flex:1; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; padding:40px;
+    border-right:1px solid var(--border);
+    position:relative; overflow:hidden;
+  }
+  .current-panel::before {
+    content:''; position:absolute; inset:0;
+    background:radial-gradient(ellipse 80% 60% at 50% 50%, rgba(0,255,136,0.04) 0%, transparent 70%);
+  }
+  .now-label {
+    font-family:var(--font-mono); font-size:0.75rem; letter-spacing:0.3em;
+    color:var(--green); text-transform:uppercase; margin-bottom:20px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .turn-number {
+    font-size:clamp(5rem,15vw,11rem); font-weight:900; line-height:1;
+    color:var(--cyan); letter-spacing:-0.02em; text-align:center;
+    text-shadow:0 0 60px rgba(0,229,255,0.3);
+    transition:all 0.4s ease;
+  }
+  .turn-name {
+    font-size:clamp(1.5rem,4vw,3rem); font-weight:700; text-transform:uppercase;
+    letter-spacing:0.05em; color:var(--text); margin-top:16px; text-align:center;
+  }
+  .turn-sub {
+    font-family:var(--font-mono); font-size:0.85rem; color:var(--text-dim);
+    letter-spacing:0.1em; margin-top:8px; text-align:center;
+  }
+  .no-turn {
+    font-family:var(--font-mono); font-size:0.9rem; color:var(--text-muted);
+    letter-spacing:0.2em; text-transform:uppercase; text-align:center;
+  }
+
+  /* ── QUEUE SIDEBAR ── */
+  .queue-panel {
+    width:360px; flex-shrink:0; display:flex; flex-direction:column;
+    background:var(--bg2);
+  }
+  .queue-panel-title {
+    font-size:0.9rem; font-weight:700; letter-spacing:0.15em; text-transform:uppercase;
+    padding:18px 24px 14px; border-bottom:1px solid var(--border);
+    color:var(--text-dim); font-family:var(--font-mono);
+  }
+  .queue-scroll { flex:1; overflow-y:auto; padding:12px; }
+  .queue-scroll::-webkit-scrollbar { width:4px; }
+  .queue-scroll::-webkit-scrollbar-track { background:transparent; }
+  .queue-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+  .q-item {
+    display:flex; align-items:center; gap:14px;
+    padding:14px 16px; border-radius:3px; margin-bottom:8px;
+    background:var(--panel); border:1px solid var(--border);
+    transition:all 0.3s ease; animation:slideIn 0.4s ease both;
+  }
+  @@keyframes slideIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+  .q-item.upnext {
+    border-color:rgba(0,229,255,0.35); background:rgba(0,229,255,0.05);
+  }
+  .q-pos {
+    font-size:1.6rem; font-weight:900; color:var(--text-muted);
+    width:44px; text-align:center; flex-shrink:0;
+  }
+  .q-item.upnext .q-pos { color:var(--cyan); }
+  .q-name { font-size:0.95rem; font-weight:700; text-transform:uppercase; }
+  .q-id   { font-family:var(--font-mono); font-size:0.65rem; color:var(--text-dim); margin-top:2px; }
+
+  /* ── HUD FOOTER ── */
+  .wr-footer {
+    padding:10px 32px; border-top:1px solid var(--border);
+    background:rgba(10,10,11,0.8); backdrop-filter:blur(8px);
+    display:flex; align-items:center; justify-content:space-between;
+    font-family:var(--font-mono); font-size:0.6rem; letter-spacing:0.15em;
+    color:var(--text-muted); text-transform:uppercase; flex-shrink:0;
+  }
+
+  /* ── AUDIO ACTIVATION INTERSTITIAL ── */
+  .activate-overlay {
+    position:fixed; inset:0; background:rgba(10,10,11,0.92);
+    z-index:9999; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:20px;
+  }
+  .activate-overlay.hidden { display:none; }
+  .activate-btn {
+    padding:20px 48px; background:var(--cyan); border:none; border-radius:4px;
+    color:var(--bg); font-family:var(--font-display); font-size:1.5rem;
+    font-weight:900; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer;
+    transition:opacity 0.2s;
+  }
+  .activate-btn:hover { opacity:0.85; }
+  .activate-label {
+    font-family:var(--font-mono); font-size:0.75rem; letter-spacing:0.2em;
+    color:var(--text-dim); text-transform:uppercase;
+  }
+  </style>
+</head>
+<body>
+
+  <div class="video-bg">
+    <video autoplay muted loop playsinline>
+      <source src="/video/A_high_tech_motorsport_HUD_sty.mp4" type="video/mp4">
+    </video>
+    <div class="bg-overlay"></div>
+  </div>
+
+  <!-- Autoplay Policy Override: Requires user interaction to enable Audio & Speech Synthesis -->
+  <div class="activate-overlay" id="activateOverlay">
+    <div class="activate-label">Trackside Display Uplink</div>
+    <button class="activate-btn" onclick="activateScreen()">Initialize Interface</button>
+    <div class="activate-label">Interactive touch required for audio clearance</div>
+  </div>
+
+  <div class="content">
+    <header class="wr-header">
+      <div class="wr-brand">KEPLER<span>TRACKLINE</span></div>
+      <div class="live-pill">
+        <div class="live-dot"></div>
+        Live Track Status
+      </div>
+      <div class="wr-clock" id="clock">00:00:00</div>
+    </header>
+
+    <main class="wr-body">
+      <section class="current-panel">
+        <div class="now-label">
+          <div class="live-dot"></div>
+          Active Stint
+        </div>
+        <div id="currentTurnDisplay" style="width:100%; display:flex; flex-direction:column; align-items:center;">
+          <div class="no-turn">No Active Participant</div>
+        </div>
+        <div id="wrTimer" style="font-family:var(--font-mono); font-size:3rem; font-weight:700; color:var(--text-dim); margin-top:20px; letter-spacing:0.1em; display:none;">
+          00:00
+        </div>
+      </section>
+
+      <aside class="queue-panel">
+        <div class="queue-panel-title">
+          <i class="bi bi-list-ol"></i> Upcoming Turns
+        </div>
+        <div class="queue-scroll" id="upcomingList">
+          <div class="no-turn" style="padding:40px 0;">
+            Empty Queue
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="wr-footer">
+      <div>KEPLER / TRACKLINE ALLIANCE — V2.0</div>
+      <div id="sessionLabel">Scanning for active session...</div>
+      <div>Telemetry Encrypted · High Security Link</div>
+    </footer>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+  <script>
+  /**
+   * Orchestrates the real-time display logic for the public waiting area.
+   * Utilizes SignalR for instant updates and Web Speech API for automated PA announcements.
+   */
+  let lastOnTrackId = null;
+  let screenActive  = false;
+  let connection    = null;
+  let sessionId     = 0;
+  let wrTimerTick   = null;
+
+  function updateClock() {
+    const el = document.getElementById('clock');
+    if (el) el.textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  /**
+   * Unlocks audio and speech contexts following user interaction.
+   * Required to comply with modern browser security policies for automated media.
+   */
+  function activateScreen() {
+    screenActive = true;
+    document.getElementById('activateOverlay').classList.add('hidden');
+    
+    // Warm up audio buffer
+    const a = new Audio('/sounds/estan-listos.mp3');
+    a.volume = 0; 
+    a.play().catch(() => {});
+    
+    // Warm up Speech Synthesis
+    const unlock = new SpeechSynthesisUtterance("");
+    window.speechSynthesis.speak(unlock);
+  }
+
+  // Initialize data connection immediately on page load
+  window.addEventListener('DOMContentLoaded', () => {
+    initSignalR();
+  });
+
+  async function initSignalR() {
+    connection = new signalR.HubConnectionBuilder()
+      .withUrl("/queueHub")
+      .withAutomaticReconnect()
+      .build();
+
+    connection.on("QueueUpdated", () => {
+      console.log("Broadcast received: Synchronizing data.");
+      loadData();
+    });
+
+    try {
+      await connection.start();
+      console.log("Telemetry uplink established.");
+      await loadData();
+    } catch (err) {
+      console.error("SignalR handshake failed. Polling fallback engaged.", err);
+      setInterval(loadData, 5000);
+    }
+  }
+
+  async function loadData() {
+    try {
+      const sr = await fetch('/Queue/GetActiveSession', { cache: 'no-store' });
+      const session = sr.ok ? await sr.json() : null;
+      const sl = document.getElementById('sessionLabel');
+
+      if (!session || !session.id) {
+        if (sl) sl.textContent = 'No Active Session';
+        renderNoSession();
+        sessionId = 0;
+        return;
+      }
+      
+      if (sessionId !== session.id) {
+        sessionId = session.id;
+        await connection.invoke("JoinSession", String(sessionId));
+      }
+
+      if (sl) sl.textContent = `Active Session: ${session.sessionCode}`;
+
+      const qr = await fetch(`/Queue/GetQueue?sessionId=${session.id}`, { cache: 'no-store' });
+      if (!qr.ok) return;
+      const entries = await qr.json();
+
+      renderCurrent(entries);
+      renderUpcoming(entries);
+    } catch (e) {
+      console.error('Data acquisition error:', e);
+    }
+  }
+
+  function renderNoSession() {
+    document.getElementById('currentTurnDisplay').innerHTML =
+      '<div class="no-turn">Station Offline</div>';
+    document.getElementById('upcomingList').innerHTML =
+      '<div class="no-turn" style="padding:40px 0;">Queue Empty</div>';
+    document.getElementById('wrTimer').style.display = 'none';
+    clearInterval(wrTimerTick);
+    wrTimerTick = null;
+  }
+
+  function renderCurrent(entries) {
+    const active = entries.find(e => e.status === 'ON_TRACK');
+    const el     = document.getElementById('currentTurnDisplay');
+    const timerEl= document.getElementById('wrTimer');
+
+    if (!active) {
+      el.innerHTML = '<div class="no-turn">No Active Stint</div>';
+      timerEl.style.display = 'none';
+      lastOnTrackId = null;
+      clearInterval(wrTimerTick);
+      wrTimerTick = null;
+      return;
+    }
+
+    // Trigger alert and voice synthesis only when the active pilot changes.
+    if (active.id !== lastOnTrackId) {
+      if (lastOnTrackId !== null) { 
+        playAlert();
+        setTimeout(() => {
+          announceTTS(active.position, active.participant?.fullName, 10);
+        }, 1500);
+      }
+      lastOnTrackId = active.id;
+      
+      // Reset and start timer
+      clearInterval(wrTimerTick);
+      wrTimerTick = null;
+    }
+
+    el.innerHTML = `
+      <div class="turn-number">${String(active.position).padStart(2,'0')}</div>
+      <div class="turn-name">${esc(active.participant?.fullName ?? '—')}</div>
+      <div class="turn-sub">${esc(active.participant?.gridId ?? '—')} · Grade ${esc(active.participant?.grade ?? '?')}</div>`;
+
+    if (active.startedAt && !wrTimerTick) {
+      timerEl.style.display = 'block';
+      const startMs = new Date(active.startedAt).getTime();
+      wrTimerTick = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startMs) / 1000);
+        const m = String(Math.floor(elapsed / 60)).padStart(2,'0');
+        const s = String(elapsed % 60).padStart(2,'0');
+        timerEl.textContent = `${m}:${s}`;
+        
+        // Change color based on time (e.g. over 25 mins)
+        if (elapsed > 1500) {
+          timerEl.style.color = 'var(--red)';
+        } else {
+          timerEl.style.color = 'var(--cyan)';
+        }
+      }, 1000);
+    }
+  }
+
+  function renderUpcoming(entries) {
+    const upcoming = entries.filter(e => e.status === 'UP_NEXT' || e.status === 'QUEUED');
+    const el       = document.getElementById('upcomingList');
+
+    if (!upcoming.length) {
+      el.innerHTML = '<div class="no-turn" style="padding:40px 0;">No Upcoming Turns</div>';
+      return;
+    }
+
+    el.innerHTML = upcoming.map((q, i) => `
+      <div class="q-item ${q.status === 'UP_NEXT' ? 'upnext' : ''}">
+        <div class="q-pos">${String(q.position).padStart(2,'0')}</div>
+        <div class="q-info">
+          <div class="q-name">${esc(q.participant?.fullName ?? '—')}</div>
+          <div class="q-id">${esc(q.participant?.gridId ?? '—')} · Grade ${esc(q.participant?.grade ?? '?')}</div>
+        </div>
+        ${q.status === 'UP_NEXT' ? '<span class="live-dot" style="margin-left:auto;"></span>' : ''}
+      </div>`).join('');
+  }
+
+  function playAlert() {
+    if (!screenActive) return;
+    try {
+      new Audio('/sounds/pase-a-la-pista.mp3').play().catch(()=>{});
+    } catch(e) {}
+  }
+
+  /**
+   * Automated PA System: Announces turn updates via high-quality speech synthesis.
+   */
+  function announceTTS(position, name, durationMinutes = 10) {
+    if (!screenActive || !('speechSynthesis' in window)) return;
+    
+    window.speechSynthesis.cancel();
+    const text = `Turn number ${position}, pilot ${name || 'unknown'}. Estimated stint duration: ${durationMinutes} minutes.`;
+    
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.lang = 'en-US';
+    msg.rate = 0.9;
+    msg.pitch = 1;
+
+    window.speechSynthesis.speak(msg);
+  }
+
+  function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  </script>
+</body>
+</html>

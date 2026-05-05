@@ -3,6 +3,10 @@ using System.Net.Mail;
 
 namespace Kepler_Trackline_Alliance.Services;
 
+/// <summary>
+/// Infrastructure service for automated email communication.
+/// Handles external SMTP handshake and provides fault-tolerant dispatch.
+/// </summary>
 public class EmailService
 {
     private readonly IConfiguration _config;
@@ -14,7 +18,11 @@ public class EmailService
         _logger = logger;
     }
 
-    public async Task SendEmailAsync(string to, string subject, string body)
+    /// <summary>
+    /// Asynchronously dispatches an email message.
+    /// Gracefully degrades if SMTP configuration is missing to ensure system uptime.
+    /// </summary>
+    public async Task<(bool Success, string ErrorMessage)> SendEmailAsync(string to, string subject, string body)
     {
         try
         {
@@ -23,11 +31,11 @@ public class EmailService
             var user = _config["SMTP:User"];
             var pass = _config["SMTP:Pass"];
 
-            // Si no hay configuración SMTP, simplemente se omite
+            // Verify infrastructure readiness before attempting handshake.
             if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(user))
             {
-                _logger.LogWarning("SMTP no configurado. Se omite el envío de email a {To}", to);
-                return;
+                _logger.LogWarning("SMTP Infrastructure not configured. Skipping email dispatch to {To}.", to);
+                return (false, "SMTP configuration is missing. Email could not be sent.");
             }
 
             var port = int.TryParse(portStr, out var p) ? p : 587;
@@ -39,13 +47,25 @@ public class EmailService
                 EnableSsl   = true
             };
 
-            var mail = new MailMessage(user!, to, subject, body);
+            var mail = new MailMessage(user!, to, subject, body)
+            {
+                IsBodyHtml = true
+            };
             await smtp.SendMailAsync(mail);
+            
+            _logger.LogInformation("Email successfully dispatched to {To}.", to);
+            return (true, string.Empty);
+        }
+        catch (SmtpException smtpEx)
+        {
+            _logger.LogError(smtpEx, "SMTP error while sending to {To} with subject '{Subject}'.", to, subject);
+            return (false, $"SMTP Error: {smtpEx.Message}");
         }
         catch (Exception ex)
         {
-            // El email nunca debe tirar la app
-            _logger.LogError(ex, "Error al enviar email a {To} con asunto '{Subject}'", to, subject);
+            // Fail-safe: Email dispatch errors should never interrupt primary application flow.
+            _logger.LogError(ex, "Mailing failure to {To} with subject '{Subject}'.", to, subject);
+            return (false, "An unexpected error occurred while sending the email.");
         }
     }
 }
