@@ -333,6 +333,41 @@ public class QueueController : Controller
             return Json(null);
         }
     }
+
+    // ── API POST /Queue/AddComment ────────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> AddComment([FromBody] CommentRequest req)
+    {
+        try
+        {
+            if (req == null || string.IsNullOrWhiteSpace(req.Comment))
+                return Json(new { ok = false, error = "Comentario vacío" });
+
+            var entry = await _context.QueueEntries.FindAsync(req.EntryId);
+            if (entry == null)
+                return Json(new { ok = false, error = "Turno no encontrado" });
+
+            var operatorId = uint.TryParse(
+                User.FindFirstValue(ClaimTypes.NameIdentifier), out var oid)
+                ? (uint?)oid : null;
+
+            _context.SessionLogs.Add(new SessionLog
+            {
+                SessionId  = entry.SessionId,
+                OperatorId = operatorId,
+                ActionType = "ADVISOR_COMMENT",
+                Notes      = req.Comment.Trim()
+            });
+            await _context.SaveChangesAsync();
+
+            return Json(new { ok = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al guardar comentario para entrada {EntryId}", req?.EntryId);
+            return Json(new { ok = false, error = "Error al guardar comentario" });
+        }
+    }
 }
 
 public record AdvanceRequest(uint SessionId);
@@ -343,3 +378,5 @@ public record AddParticipantRequest(
     string  GridId,
     string? Grade,
     int?    SeasonPoints);
+
+public record CommentRequest(uint EntryId, string Comment);
