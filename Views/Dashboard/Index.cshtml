@@ -1,246 +1,202 @@
 @model Kepler_Trackline_Alliance.ViewModels.RegisterViewModel
-@{ Layout = null; }
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>APEX CONTROL — Driver Registry</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;0,900;1,700&family=Barlow:wght@400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<link rel="stylesheet" href="~/css/styles.css">
-</head>
-<body>
+@{
+    ViewData["Title"] = "Registro de Pilotos";
+}
 
-<div class="toast-container" id="toastContainer"></div>
-<div class="overlay" id="mobileOverlay" onclick="closeSidebar()"></div>
-
-<div class="screen active" id="screen-dashboard" style="flex-direction:column;">
-  <div class="topbar" id="topbar"></div>
-  <div class="dashboard-body">
-    <div class="sidebar" id="sidebar"></div>
-    <div class="main-content">
-
-      <div class="page-heading">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-          <div>
-            <h1>Driver &amp; Vehicle Onboarding</h1>
-            <p>Security Clearance Level 2 · Authorized Personnel Only</p>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-family:var(--font-display); font-size:1.1rem; font-weight:700;">
-              TOTAL ENTRIES: <span style="color:var(--cyan);" id="totalEntries">0</span>
-            </div>
-            <div style="font-family:var(--font-mono); font-size:0.6rem; letter-spacing:0.12em; color:var(--text-muted);">SESSION ID: <span id="sessionCode">—</span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- PRINT SERVER CONFIG -->
-      <div class="print-config-bar">
-        <i class="bi bi-printer" style="color:var(--cyan);"></i>
-        <label>Servidor de impresión (IP:Puerto)</label>
-        <input type="text" id="printServerIp" placeholder="192.168.1.105:3000">
-        <button class="btn-outline" style="padding:6px 12px; font-size:0.7rem;" onclick="testPrintConnection()">
-          <span class="print-status-dot" id="printStatusDot"></span>
-          Probar conexión
-        </button>
-        <span id="printStatusLabel" style="font-family:var(--font-mono); font-size:0.6rem; letter-spacing:0.1em; color:var(--text-muted); text-transform:uppercase;"></span>
-      </div>
-
-      <!-- TABS -->
-      <div class="tab-nav">
-        <button class="tab-btn active" onclick="switchTab('pilot', this)">Piloto</button>
-        <button class="tab-btn" onclick="switchTab('vehicle', this)">Vehículo</button>
-        <button class="tab-btn" onclick="switchTab('search', this)">Buscar &amp; Asignar Turno</button>
-      </div>
-
-      <div class="row g-4">
-        <!-- LEFT: FORMS -->
-        <div class="col-lg-6">
-
-          <!-- TAB PILOTO -->
-          <div id="tab-pilot" class="tab-panel active">
-            <div class="z-panel red-accent">
-              <div class="panel-title"><i class="bi bi-person-badge" style="color:var(--red);"></i> Registrar Participante</div>
-              <div class="panel-body">
-                <div class="z-field">
-                  <label class="field-label">Nombre completo</label>
-                  <input class="z-field-input" id="pilotName" type="text" placeholder="MARCUS VANDERGRIFT" oninput="validatePilotName(this)">
-                  <div class="field-error" id="pilotNameErr" style="display:none;"><i class="bi bi-exclamation-triangle"></i> Campo requerido</div>
-                </div>
-
-                <div class="z-field-row">
-                  <div class="z-field">
-                    <label class="field-label">Grid ID</label>
-                    <div class="driver-id-wrap">
-                      <input class="z-field-input" id="driverId" type="text" placeholder="KR-460-THX" oninput="checkDuplicateGridId(this)">
-                      <button class="verify-btn" onclick="verifyGridId()">
-                        <i class="bi bi-shield-check"></i> Verify
-                      </button>
-                    </div>
-                    <div class="field-error" id="driverIdErr" style="display:none;"><i class="bi bi-exclamation-triangle"></i> ID ya registrado</div>
-                    <div class="field-success" id="driverIdOk" style="display:none;"><i class="bi bi-check-circle"></i> ID disponible</div>
-                  </div>
-                  <div class="z-field">
-                    <label class="field-label">License Grade</label>
-                    <select class="z-field-input" id="licenseGrade">
-                      <option value="">Seleccionar...</option>
-                      <option value="S">S — PLATINUM (Prioridad Alta)</option>
-                      <option value="A">A — GOLD</option>
-                      <option value="B">B — SILVER</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div class="z-field">
-                  <label class="field-label">Season Points</label>
-                  <input class="z-field-input" id="seasonPoints" type="number" placeholder="0" min="0">
-                </div>
-
-                <div class="d-flex gap-2 flex-wrap">
-                  <button class="btn-primary" onclick="commitPilotRegistration()">
-                    <i class="bi bi-floppy"></i> Commit Registration
-                  </button>
-                  <button class="btn-outline" onclick="clearPilotForm()">
-                    <i class="bi bi-x-circle"></i> Limpiar
-                  </button>
-                </div>
-
-                <div id="pilotPrintArea" style="display:none; margin-top:14px;">
-                  <button class="btn-print" id="pilotPrintBtn" onclick="printPilotTicket()">
-                    <i class="bi bi-printer-fill"></i> Imprimir Ticket Piloto
-                  </button>
-                </div>
-
-                <div style="margin-top:14px; display:flex; gap:16px;">
-                  <span style="font-family:var(--font-mono); font-size:0.58rem; letter-spacing:0.1em; color:var(--green);">
-                    <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--green); margin-right:5px;"></span>ENCRYPTION ACTIVE
-                  </span>
-                  <span style="font-family:var(--font-mono); font-size:0.58rem; letter-spacing:0.1em; color:var(--text-muted);">SECURE UPLINK 0.4ms</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- TAB VEHICULO (local, no BD) -->
-          <div id="tab-vehicle" class="tab-panel">
-            <div class="z-panel red-accent">
-              <div class="panel-title"><i class="bi bi-car-front-fill" style="color:var(--red);"></i> Registration Form — Vehículo</div>
-              <div class="panel-body">
-                <div class="z-field">
-                  <label class="field-label">Car Brand &amp; Model</label>
-                  <input class="z-field-input" id="carModel" type="text" placeholder="e.g., AUDI RS6, BMW M4">
-                </div>
-                <div class="z-field-row">
-                  <div class="z-field">
-                    <label class="field-label">Chassis Number</label>
-                    <input class="z-field-input" id="chassisNum" type="text" placeholder="VIN-######">
-                  </div>
-                  <div class="z-field">
-                    <label class="field-label">Pit Garage</label>
-                    <input class="z-field-input" id="pitGarage" type="text" placeholder="G-14">
-                  </div>
-                </div>
-                <div class="z-field">
-                  <label class="field-label">Categoría</label>
-                  <select class="z-field-input" id="carCategory">
-                    <option value="">Seleccionar categoría...</option>
-                    <option>GT3</option><option>GT4</option><option>Touring Car</option>
-                    <option>Formula Regional</option><option>Super Sport</option><option>Track Day</option>
-                  </select>
-                </div>
-                <div class="z-field">
-                  <label class="field-label">Grid ID vinculado</label>
-                  <input class="z-field-input" id="carDriverId" type="text" placeholder="KR-460-THX">
-                </div>
-                <div class="d-flex gap-2 flex-wrap">
-                  <button class="btn-primary" onclick="commitVehicleRegistration()">
-                    <i class="bi bi-floppy"></i> Guardar Vehículo
-                  </button>
-                  <button class="btn-outline" onclick="clearVehicleForm()">
-                    <i class="bi bi-x-circle"></i> Limpiar
-                  </button>
-                </div>
-                <div id="vehiclePrintArea" style="display:none; margin-top:14px;">
-                  <button class="btn-print" id="vehiclePrintBtn" onclick="printVehicleTicket()">
-                    <i class="bi bi-printer-fill"></i> Imprimir Ticket Vehículo
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- TAB BUSCAR & ASIGNAR -->
-          <div id="tab-search" class="tab-panel">
-            <div class="z-panel">
-              <div class="panel-title"><i class="bi bi-search"></i> Buscar &amp; Asignar Turno</div>
-              <div class="panel-body">
-                <div class="z-field" style="position:relative;">
-                  <label class="field-label">Nombre o Grid ID</label>
-                  <input class="z-field-input" id="pilotSearch" type="text" placeholder="Hamilton, KR-440-MBZ..." oninput="handlePilotSearch(this)" autocomplete="off">
-                  <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
-                </div>
-                <div id="selectedPilotCard" style="display:none;"></div>
-                <div id="assignSection" style="display:none;">
-                  <div class="z-field">
-                    <label class="field-label">Duración del turno</label>
-                    <div class="duration-grid">
-                      <div class="duration-btn" onclick="selectDuration(this, 10)">10 min</div>
-                      <div class="duration-btn" onclick="selectDuration(this, 15)">15 min</div>
-                      <div class="duration-btn selected" onclick="selectDuration(this, 20)">20 min</div>
-                      <div class="duration-btn" onclick="selectDuration(this, 30)">30 min</div>
-                      <div class="duration-btn" onclick="selectDuration(this, 45)">45 min</div>
-                      <div class="duration-btn" onclick="selectDuration(this, 60)">60 min</div>
-                    </div>
-                  </div>
-                  <button class="btn-primary w-100" onclick="assignTurn()">
-                    <i class="bi bi-ticket-perforated"></i> Asignar Turno a Cola
-                  </button>
-                </div>
-                <div id="ticketDisplay" style="display:none; margin-top:16px;"></div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- RIGHT: RECENT ENTRIES -->
-        <div class="col-lg-6">
-          <div class="z-panel">
-            <div class="panel-title" style="justify-content:space-between; display:flex;">
-              <span><i class="bi bi-clock-history"></i> Participantes registrados</span>
-            </div>
-            <div class="panel-body" id="recentEntriesList">
-              <div style="color:var(--text-muted); font-family:var(--font-mono); font-size:0.7rem; text-align:center; padding:20px;">Cargando...</div>
-            </div>
-          </div>
-          <div class="status-log mt-3">
-            <div class="status-log-title">
-              <span class="status-log-dot"></span>
-              System Status: Data Uplink Stable
-            </div>
-            <div class="status-log-body" id="systemStatusLog">
-              Sistema operando normalmente.
-            </div>
-          </div>
-        </div>
-      </div>
-
+<div class="page-heading">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+      <h1>Driver &amp; Vehicle Onboarding</h1>
+      <p>Security Clearance Level 2 · Authorized Personnel Only</p>
     </div>
-  </div>
-
-  <div class="bottom-bar">
-    <div class="bottom-bar-item"><div class="dot blue"></div>Sat-Link Stable</div>
-    <div class="bottom-bar-item"><div class="dot"></div>Local Server Nominal</div>
-    <div class="bottom-bar-item" style="margin-left:auto;">Encrypted Pit-to-Car Channel 04 Active</div>
+    <div style="text-align:right;">
+      <div style="font-family:var(--font-display); font-size:1.1rem; font-weight:700;">
+        TOTAL ENTRIES: <span style="color:var(--cyan);" id="totalEntries">0</span>
+      </div>
+      <div class="badge-session">SESSION ID: <span id="sessionCode">—</span></div>
+    </div>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="~/js/shared.js"></script>
-<script src="~/js/registro.js"></script>
-</body>
-</html>
+<!-- PRINT SERVER CONFIG -->
+<div class="print-config-bar">
+  <i class="bi bi-printer" style="color:var(--cyan);"></i>
+  <label>Servidor de impresión (IP:Puerto)</label>
+  <input type="text" id="printServerIp" placeholder="192.168.1.105:3000">
+  <button class="btn-outline" style="padding:6px 12px; font-size:0.7rem;" onclick="testPrintConnection()">
+    <span class="print-status-dot" id="printStatusDot"></span>
+    Probar conexión
+  </button>
+  <span id="printStatusLabel" style="font-family:var(--font-mono); font-size:0.6rem; letter-spacing:0.1em; color:var(--text-muted); text-transform:uppercase;"></span>
+</div>
+
+<!-- TABS -->
+<div class="tab-nav mb-4">
+  <button class="tab-btn active" onclick="switchTab('pilot', this)">Piloto</button>
+  <button class="tab-btn" onclick="switchTab('vehicle', this)">Vehículo</button>
+  <button class="tab-btn" onclick="switchTab('search', this)">Buscar &amp; Asignar Turno</button>
+</div>
+
+<div class="row g-4">
+  <!-- LEFT: FORMS -->
+  <div class="col-lg-6">
+
+    <!-- TAB PILOTO -->
+    <div id="tab-pilot" class="tab-panel active">
+      <div class="z-panel red-accent">
+        <div class="panel-title"><i class="bi bi-person-badge" style="color:var(--red);"></i> Registrar Participante</div>
+        <div class="panel-body">
+          <div class="z-field">
+            <label class="field-label">Nombre completo</label>
+            <input class="z-field-input" id="pilotName" type="text" placeholder="MARCUS VANDERGRIFT" oninput="validatePilotName(this)">
+            <div class="field-error" id="pilotNameErr" style="display:none;"><i class="bi bi-exclamation-triangle"></i> Campo requerido</div>
+          </div>
+
+          <div class="z-field-row">
+            <div class="z-field">
+              <label class="field-label">Grid ID</label>
+              <div class="driver-id-wrap">
+                <input class="z-field-input" id="driverId" type="text" placeholder="KR-460-THX" oninput="checkDuplicateGridId(this)">
+                <button class="verify-btn" onclick="verifyGridId()">
+                  <i class="bi bi-shield-check"></i> Verify
+                </button>
+              </div>
+              <div class="field-error" id="driverIdErr" style="display:none;"><i class="bi bi-exclamation-triangle"></i> ID ya registrado</div>
+              <div class="field-success" id="driverIdOk" style="display:none;"><i class="bi bi-check-circle"></i> ID disponible</div>
+            </div>
+            <div class="z-field">
+              <label class="field-label">License Grade</label>
+              <select class="z-field-input" id="licenseGrade">
+                <option value="">Seleccionar...</option>
+                <option value="S">S — PLATINUM (Prioridad Alta)</option>
+                <option value="A">A — GOLD</option>
+                <option value="B">B — SILVER</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="z-field">
+            <label class="field-label">Season Points</label>
+            <input class="z-field-input" id="seasonPoints" type="number" placeholder="0" min="0">
+          </div>
+
+          <div class="d-flex gap-2 flex-wrap">
+            <button class="btn-primary" onclick="commitPilotRegistration()">
+              <i class="bi bi-floppy"></i> Commit Registration
+            </button>
+            <button class="btn-outline" onclick="clearPilotForm()">
+              <i class="bi bi-x-circle"></i> Limpiar
+            </button>
+          </div>
+
+          <div id="pilotPrintArea" style="display:none; margin-top:14px;">
+            <button class="btn-print" id="pilotPrintBtn" onclick="printPilotTicket()">
+              <i class="bi bi-printer-fill"></i> Imprimir Ticket Piloto
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB VEHICULO -->
+    <div id="tab-vehicle" class="tab-panel">
+      <div class="z-panel red-accent">
+        <div class="panel-title"><i class="bi bi-car-front-fill" style="color:var(--red);"></i> Registration Form — Vehículo</div>
+        <div class="panel-body">
+          <div class="z-field">
+            <label class="field-label">Car Brand &amp; Model</label>
+            <input class="z-field-input" id="carModel" type="text" placeholder="e.g., AUDI RS6, BMW M4">
+          </div>
+          <div class="z-field-row">
+            <div class="z-field">
+              <label class="field-label">Chassis Number</label>
+              <input class="z-field-input" id="chassisNum" type="text" placeholder="VIN-######">
+            </div>
+            <div class="z-field">
+              <label class="field-label">Pit Garage</label>
+              <input class="z-field-input" id="pitGarage" type="text" placeholder="G-14">
+            </div>
+          </div>
+          <div class="z-field">
+            <label class="field-label">Categoría</label>
+            <select class="z-field-input" id="carCategory">
+              <option value="">Seleccionar categoría...</option>
+              <option>GT3</option><option>GT4</option><option>Touring Car</option>
+              <option>Formula Regional</option><option>Super Sport</option><option>Track Day</option>
+            </select>
+          </div>
+          <div class="z-field">
+            <label class="field-label">Grid ID vinculado</label>
+            <input class="z-field-input" id="carDriverId" type="text" placeholder="KR-460-THX">
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+            <button class="btn-primary" onclick="commitVehicleRegistration()">
+              <i class="bi bi-floppy"></i> Guardar Vehículo
+            </button>
+            <button class="btn-outline" onclick="clearVehicleForm()">
+              <i class="bi bi-x-circle"></i> Limpiar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB BUSCAR & ASIGNAR -->
+    <div id="tab-search" class="tab-panel">
+      <div class="z-panel">
+        <div class="panel-title"><i class="bi bi-search"></i> Buscar &amp; Asignar Turno</div>
+        <div class="panel-body">
+          <div class="z-field" style="position:relative;">
+            <label class="field-label">Nombre o Grid ID</label>
+            <input class="z-field-input" id="pilotSearch" type="text" placeholder="Hamilton, KR-440-MBZ..." oninput="handlePilotSearch(this)" autocomplete="off">
+            <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
+          </div>
+          <div id="selectedPilotCard" style="display:none;"></div>
+          <div id="assignSection" style="display:none;">
+            <div class="z-field">
+              <label class="field-label">Duración del turno</label>
+              <div class="duration-grid">
+                <div class="duration-btn" onclick="selectDuration(this, 10)">10 min</div>
+                <div class="duration-btn" onclick="selectDuration(this, 15)">15 min</div>
+                <div class="duration-btn selected" onclick="selectDuration(this, 20)">20 min</div>
+                <div class="duration-btn" onclick="selectDuration(this, 30)">30 min</div>
+                <div class="duration-btn" onclick="selectDuration(this, 45)">45 min</div>
+                <div class="duration-btn" onclick="selectDuration(this, 60)">60 min</div>
+              </div>
+            </div>
+            <button class="btn-primary w-100" onclick="assignTurn()">
+              <i class="bi bi-ticket-perforated"></i> Asignar Turno a Cola
+            </button>
+          </div>
+          <div id="ticketDisplay" style="display:none; margin-top:16px;"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: RECENT ENTRIES -->
+  <div class="col-lg-6">
+    <div class="z-panel">
+      <div class="panel-title" style="justify-content:space-between; display:flex;">
+        <span><i class="bi bi-clock-history"></i> Participantes registrados</span>
+      </div>
+      <div class="panel-body" id="recentEntriesList">
+        <div style="color:var(--text-muted); font-family:var(--font-mono); font-size:0.7rem; text-align:center; padding:20px;">Cargando...</div>
+      </div>
+    </div>
+    <div class="status-log mt-3">
+      <div class="status-log-title">
+        <span class="status-log-dot"></span>
+        System Status: Data Uplink Stable
+      </div>
+      <div class="status-log-body" id="systemStatusLog">
+        Sistema operando normalmente.
+      </div>
+    </div>
+  </div>
+</div>
+
+@section Scripts {
+  <script src="~/js/registro.js" asp-append-version="true"></script>
+}

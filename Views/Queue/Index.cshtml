@@ -1,195 +1,133 @@
 @model Kepler_Trackline_Alliance.ViewModels.QueueViewModel
-@{ Layout = null; }
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>APEX CONTROL — Cola de Turnos</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;0,900;1,700&family=Barlow:wght@400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-<link rel="stylesheet" href="~/css/styles.css">
-</head>
-<body>
+@{
+    ViewData["Title"] = "Panel de Turnos";
+}
 
-<div class="toast-container" id="toastContainer"></div>
-<div class="overlay" id="mobileOverlay" onclick="closeSidebar()"></div>
-
-<input type="hidden" id="activeSessionId" value="@Model.SessionId">
-
-<div class="screen active" id="screen-dashboard" style="flex-direction:column;">
-  <div class="topbar" id="topbar"></div>
-  <div class="dashboard-body">
-    <div class="sidebar" id="sidebar"></div>
-    <div class="main-content">
-
-      <div class="page-heading">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-          <div>
-            <h1>Cola de Turnos</h1>
-            <p>Actualización en tiempo real · @(Model.SessionId > 0 ? "Sesión activa" : "Sin sesión")</p>
-          </div>
-          <div class="d-flex align-items-center gap-3 flex-wrap">
-            <div class="live-badge"><div class="live-dot"></div>Live Feed</div>
-
-            @if (Model.SessionId == 0)
-            {
-              <form asp-action="Start" asp-controller="Session" method="post" style="margin:0;">
-                <button type="submit" class="btn-primary" style="padding:8px 18px;font-size:0.75rem;">
-                  <i class="bi bi-play-fill"></i> Iniciar Sesión
-                </button>
-              </form>
-            }
-            else
-            {
-              <div class="signalr-badge"><div class="ping"></div>Session #@Model.SessionId</div>
-              <form asp-action="End" asp-controller="Session" method="post" style="margin:0;"
-                    onsubmit="return confirm('¿Finalizar la sesión actual? Esto cerrará la cola.')">
-                <input type="hidden" name="sessionId" value="@Model.SessionId">
-                <button type="submit" class="btn-outline" style="padding:8px 14px;font-size:0.75rem;border-color:var(--red);color:var(--red);">
-                  <i class="bi bi-stop-fill"></i> Finalizar Sesión
-                </button>
-              </form>
-            }
-          </div>
-        </div>
-      </div>
-
-      @if (TempData["Error"] != null)
-      {
-        <div style="background:rgba(255,59,59,0.1);border:1px solid var(--red);color:var(--red);
-          font-family:var(--font-mono);font-size:0.72rem;border-radius:3px;padding:10px 16px;margin-bottom:16px;">
-          <i class="bi bi-exclamation-triangle me-2"></i>@TempData["Error"]
-        </div>
-      }
-
-      @if (Model.SessionId == 0)
-      {
-        <div style="text-align:center;padding:80px 20px;">
-          <i class="bi bi-flag-fill" style="font-size:3.5rem;color:var(--text-muted);"></i>
-          <div style="font-family:var(--font-mono);font-size:0.8rem;letter-spacing:0.2em;
-            color:var(--text-muted);text-transform:uppercase;margin-top:20px;">
-            No hay sesión activa
-          </div>
-          <div style="font-family:var(--font-mono);font-size:0.65rem;color:var(--text-muted);
-            margin-top:8px;letter-spacing:0.1em;">
-            Haz clic en "Iniciar Sesión" para comenzar a gestionar la cola
-          </div>
-        </div>
-      }
-      else
-      {
-        <div class="queue-grid">
-          <!-- LEFT: LISTA + STATS -->
-          <div>
-            <div class="row g-3 mb-4">
-              <div class="col-4">
-                <div class="stat-mini">
-                  <div class="stat-mini-val" id="statPending" style="color:var(--yellow);">
-                    @Model.Entries.Count(e => e.Status == "QUEUED")
-                  </div>
-                  <div class="stat-mini-label">Pendientes</div>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="stat-mini">
-                  <div class="stat-mini-val" id="statActive" style="color:var(--green);">
-                    @Model.Entries.Count(e => e.Status == "ON_TRACK")
-                  </div>
-                  <div class="stat-mini-label">En Pista</div>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="stat-mini">
-                  <div class="stat-mini-val" id="statDone" style="color:var(--text-dim);">0</div>
-                  <div class="stat-mini-label">Atendidos</div>
-                </div>
-              </div>
-              <div class="col-4" id="statAvgContainer">
-                <div class="stat-mini">
-                  <div class="stat-mini-val" id="statAvgTime" style="color:var(--cyan);">0m</div>
-                  <div class="stat-mini-label">T. Promedio</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="queue-list" id="queueList">
-              <div style="text-align:center;padding:30px;color:var(--text-muted);
-                font-family:var(--font-mono);font-size:0.7rem;">Cargando cola...</div>
-            </div>
-          </div>
-
-          <!-- RIGHT: TURNO ACTIVO + TIMER + CONTROLES -->
-          <div>
-            <div class="z-panel" style="margin-bottom:16px;">
-              <div class="panel-title"><i class="bi bi-person-check"></i> Turno Actual</div>
-              <div class="panel-body" id="currentTurnPanel">
-                <div style="text-align:center;padding:20px 0;color:var(--text-muted);
-                  font-family:var(--font-mono);font-size:0.7rem;letter-spacing:0.15em;text-transform:uppercase;">
-                  Sin turno activo
-                </div>
-              </div>
-            </div>
-
-            <div class="z-panel" style="margin-bottom:16px;">
-              <div class="panel-title"><i class="bi bi-clock"></i> Tiempo en Pista</div>
-              <div class="panel-body">
-                <div class="big-timer" id="bigTimer">--:--</div>
-                <div style="margin-top:10px;">
-                  <div class="progress-bar-wrap">
-                    <div class="progress-bar-fill" id="mainProgressBar" style="width:0%;"></div>
-                  </div>
-                </div>
-                <div style="display:flex;justify-content:space-between;margin-top:16px;gap:8px;">
-                <div style="display:flex;flex-direction:column;margin-top:16px;gap:10px;">
-                  <div style="display:flex;gap:8px;">
-                    <button class="btn-primary" style="flex:1;justify-content:center;background:var(--green);border-color:var(--green);color:var(--bg);" onclick="advanceQueue()">
-                      <i class="bi bi-check-circle-fill"></i> Finalizar y Siguiente
-                    </button>
-                  </div>
-                  <div style="display:flex;gap:8px;">
-                    <button class="btn-outline" style="flex:1;justify-content:center;" onclick="reannounceCurrent()">
-                      <i class="bi bi-megaphone-fill"></i> Llamar de Nuevo
-                    </button>
-                    <a href="/Dashboard/Index" class="btn-outline"
-                       style="flex:1;justify-content:center;text-decoration:none;">
-                      <i class="bi bi-person-plus"></i> Agregar
-                    </a>
-                  </div>
-                </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- PRÓXIMO EN COLA -->
-            <div class="z-panel">
-              <div class="panel-title"><i class="bi bi-clock-history"></i> Próximo en Cola</div>
-              <div class="panel-body" id="upNextPanel">
-                <div style="text-align:center;padding:10px 0;color:var(--text-muted);
-                  font-family:var(--font-mono);font-size:0.65rem;letter-spacing:0.12em;">
-                  —
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      }
-
+<div class="page-heading">
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+    <div>
+      <h1>Control de Pista</h1>
+      <p>Gestión de cola y cronometraje en tiempo real</p>
     </div>
-  </div>
-
-  <div class="bottom-bar">
-    <div class="bottom-bar-item"><div class="dot blue"></div>Sat-Link Stable</div>
-    <div class="bottom-bar-item"><div class="dot"></div>Local Server Nominal</div>
-    <div class="bottom-bar-item" style="margin-left:auto;">Encrypted Pit-to-Car Channel 04 Active</div>
+    <div class="badge-session">
+      SESIÓN: <span class="tag tag-cyan">@Model.SessionCode</span>
+    </div>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
-<script src="~/js/shared.js"></script>
-<script src="~/js/cola.js"></script>
-</body>
-</html>
+<div class="row g-4">
+  <!-- COLUMNA IZQUIERDA: COLA -->
+  <div class="col-lg-8">
+    <div class="z-panel">
+      <div class="panel-title">
+        <i class="bi bi-list-ol"></i> Lista de Turnos
+      </div>
+      <div class="panel-body">
+        <!-- Dashboard Stats Grid -->
+        <div class="row g-3 mb-4">
+          <div class="col-6 col-md-3">
+            <div class="stat-mini">
+              <div class="stat-mini-val" id="statDone" style="color:var(--green);">0</div>
+              <div class="stat-mini-label">Atendidos</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="stat-mini">
+              <div class="stat-mini-val" id="statQueued" style="color:var(--yellow);">0</div>
+              <div class="stat-mini-label">En Cola</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="stat-mini">
+              <div class="stat-mini-val" id="statAvgTime" style="color:var(--cyan);">0m</div>
+              <div class="stat-mini-label">T. Promedio</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="stat-mini">
+              <div class="stat-mini-val" id="statTurnRate" style="color:var(--orange);">0/h</div>
+              <div class="stat-mini-label">Frecuencia</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="nextPilotBanner" class="status-log mb-4" style="display:none; border-color:var(--yellow); background:rgba(255,214,0,0.02);">
+          <div class="status-log-title" style="color:var(--yellow);">
+            <i class="bi bi-person-up"></i> Próximo en Pista
+          </div>
+          <div class="status-log-body" id="nextPilotName" style="font-weight:700; font-size:1rem; color:var(--text);">
+            Cargando...
+          </div>
+        </div>
+
+        <div class="queue-list" id="queueList">
+          <div class="text-center py-5 text-dim">
+            <div class="spinner-border spinner-border-sm mb-2"></div>
+            <p>Sincronizando con la pista...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLUMNA DERECHA: ACCIONES Y DETALLE -->
+  <div class="col-lg-4">
+    <div class="z-panel red-accent">
+      <div class="panel-title">
+        <i class="bi bi-lightning-fill"></i> Control de Atención
+      </div>
+      <div class="panel-body">
+        <div id="currentTurnPanel">
+          <div class="text-center py-4 text-muted">
+            Sin turno activo
+          </div>
+        </div>
+
+        <!-- Timer y Progreso -->
+        <div class="mt-4">
+          <div id="bigTimer" class="big-timer">--:--</div>
+          <div class="progress-bar-wrap mt-2" style="height:6px;">
+            <div id="mainProgressBar" class="progress-bar-fill" style="width:0%;"></div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;margin-top:16px;gap:10px;">
+          <div style="display:flex;gap:8px;">
+            <button class="btn-primary" style="flex:1;justify-content:center;background:var(--green);border-color:var(--green);color:var(--bg);" onclick="advanceQueue()">
+              <i class="bi bi-check-circle-fill"></i> Finalizar y Siguiente
+            </button>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-outline" style="flex:1;justify-content:center;" onclick="reannounceCurrent()">
+              <i class="bi bi-megaphone-fill"></i> Llamar de Nuevo
+            </button>
+            <a href="/Dashboard/Index" class="btn-outline"
+               style="flex:1;justify-content:center;text-decoration:none;">
+              <i class="bi bi-person-plus"></i> Agregar
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="z-panel mt-4">
+      <div class="panel-title">
+        <i class="bi bi-chat-left-dots"></i> Notas Rápidas
+      </div>
+      <div class="panel-body">
+        <textarea id="quickNotes" class="z-field-input" rows="3" placeholder="Añadir comentario al turno actual..."></textarea>
+        <button class="btn-outline mt-2 w-100" style="justify-content:center;" onclick="saveComment()">
+          <i class="bi bi-save"></i> Guardar Comentario
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden inputs for JS -->
+<input type="hidden" id="activeSessionId" value="@Model.SessionId" />
+
+@section Scripts {
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+  <script src="~/js/cola.js" asp-append-version="true"></script>
+}

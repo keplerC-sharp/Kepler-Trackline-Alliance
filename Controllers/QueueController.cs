@@ -34,10 +34,15 @@ public class QueueController : Controller
                 .FirstOrDefaultAsync();
 
             if (session == null)
-                return View(new QueueViewModel { Entries = new(), SessionId = 0 });
+                return View(new QueueViewModel { Entries = new(), SessionId = 0, SessionCode = "N/A" });
 
             var entries = await _queue.GetQueueAsync(session.Id);
-            return View(new QueueViewModel { Entries = entries, SessionId = session.Id });
+            return View(new QueueViewModel 
+            { 
+                Entries     = entries, 
+                SessionId   = session.Id,
+                SessionCode = session.SessionCode 
+            });
         }
         catch (Exception ex)
         {
@@ -330,9 +335,31 @@ public class QueueController : Controller
                 .Where(o => operatorIds.Contains(o.Id))
                 .ToDictionaryAsync(o => o.Id, o => o.FullName);
 
+            // Tasa de turnos (turnos por hora)
+            double turnRate = 0;
+            if (completedEntries.Count > 1)
+            {
+                var firstComp = completedEntries.Min(e => e.CompletedAt!.Value);
+                var lastComp = completedEntries.Max(e => e.CompletedAt!.Value);
+                var totalHours = (lastComp - firstComp).TotalHours;
+                if (totalHours > 0) turnRate = Math.Round(completedEntries.Count / totalHours, 1);
+            }
+
+            var totalQueued = await _context.QueueEntries
+                .CountAsync(q => q.SessionId == sessionId && q.Status == "QUEUED");
+
+            var nextPilot = await _context.QueueEntries
+                .Include(q => q.Participant)
+                .Where(q => q.SessionId == sessionId && q.Status == "UP_NEXT")
+                .Select(q => q.Participant.FullName)
+                .FirstOrDefaultAsync();
+
             return Json(new
             {
                 avgTimeMinutes = Math.Round(avgMinutes, 1),
+                turnRate       = turnRate,
+                totalQueued    = totalQueued,
+                nextPilotName  = nextPilot ?? "Nadie",
                 byAdvisor      = advisorStats.Select(s => new
                 {
                     name  = operators.ContainsKey(s.operatorId!.Value) ? operators[s.operatorId!.Value] : $"Op #{s.operatorId}",
@@ -343,7 +370,7 @@ public class QueueController : Controller
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al obtener estadísticas avanzadas para sesión {SessionId}", sessionId);
-            return Json(new { avgTimeMinutes = 0, byAdvisor = new List<object>() });
+            return Json(new { avgTimeMinutes = 0, byAdvisor = new List<object>(), turnRate = 0, totalQueued = 0 });
         }
     }
 

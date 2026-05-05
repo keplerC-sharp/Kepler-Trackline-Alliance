@@ -79,6 +79,23 @@ async function loadAdvancedStats() {
     // Mostrar tiempo promedio si existe un contenedor
     const elAvg = document.getElementById('statAvgTime');
     if (elAvg) elAvg.textContent = data.avgTimeMinutes + 'm';
+
+    const elQueued = document.getElementById('statQueued');
+    if (elQueued) elQueued.textContent = data.totalQueued;
+
+    const elRate = document.getElementById('statTurnRate');
+    if (elRate) elRate.textContent = data.turnRate + '/h';
+
+    const elBanner = document.getElementById('nextPilotBanner');
+    const elNextName = document.getElementById('nextPilotName');
+    if (elBanner && elNextName) {
+      if (data.nextPilotName && data.nextPilotName !== 'Nadie') {
+        elNextName.textContent = data.nextPilotName;
+        elBanner.style.display = 'block';
+      } else {
+        elBanner.style.display = 'none';
+      }
+    }
   } catch { /* silencioso */ }
 }
 
@@ -230,10 +247,10 @@ function updateUpNext(entries) {
 
 // ── Stats ─────────────────────────────────────────────────────────────────
 function updateStatsFromQueue(entries) {
-  const sp = document.getElementById('statPending');
-  const sa = document.getElementById('statActive');
-  if (sp) sp.textContent = entries.filter(e => e.status === 'QUEUED').length;
-  if (sa) sa.textContent = entries.filter(e => e.status === 'ON_TRACK').length;
+  const sq = document.getElementById('statQueued');
+  if (sq) sq.textContent = entries.filter(e => e.status === 'QUEUED' || e.status === 'UP_NEXT').length;
+  
+  // statDone se actualiza vía loadAdvancedStats para mayor precisión histórica
 }
 
 // ── Avanzar cola ──────────────────────────────────────────────────────────
