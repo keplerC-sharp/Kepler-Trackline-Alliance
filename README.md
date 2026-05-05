@@ -1,116 +1,279 @@
-# KEPLER / TRACKLINE ALLIANCE — Documentación de Base de Datos
+# KEPLER / TRACKLINE ALLIANCE
+### Sistema de Gestión de Cola con Prioridades — Documentación Completa
 
-**Versión:** 1.0  
-**Motor:** MySQL 8.0+  
-**Charset:** utf8mb4 / utf8mb4_unicode_ci  
-**Base de datos:** `kepler_core`
+## Autore
+- Camilo
+- Daniela
+- Juan Eduardo
+- Ismael
+
+**Stack:** ASP.NET Core 10 · Entity Framework Core 9 · MySQL 8 · Vanilla JS  
+**Base de datos:** `kepler_core`  
+**Versión:** 2.0
 
 ---
 
-## Propósito del sistema
+## ¿Qué es este sistema?
 
-KEPLER es una aplicación de **gestión de cola con prioridades**, controlada por un operador. Los participantes se registran y son asignados a una cola FIFO que respeta niveles de prioridad (Grade S, A, B). El operador controla en tiempo real quién está siendo atendido, quién es el siguiente y el estado de cada turno.
+KEPLER es una aplicación web para gestión de turnos en tiempo real. Un operador autenticado abre una sesión, registra participantes con su Grid ID y nivel de licencia, y los asigna a una cola FIFO con prioridad automática según su grade. Desde el panel de cola puede avanzar turnos, ver quién está en pista y quién es el siguiente.
 
 ---
 
-## Diagrama de relaciones
+## Requisitos
+
+| Requisito | Versión mínima |
+|---|---|
+| .NET SDK | 10.0 |
+| MySQL | 8.0+ |
+| Navegador moderno | Chrome / Firefox / Edge |
+
+---
+
+## Instalación y ejecución
+
+### 1. Clonar / descomprimir el proyecto
+
+```bash
+cd kepler/
+```
+
+### 2. Configurar la base de datos
+
+Editar `appsettings.json` con los datos de tu servidor MySQL:
+
+```json
+{
+  "ConnectionStrings": {
+    "Default": "server=TU_HOST;port=3306;database=kepler_core;user=TU_USUARIO;password=TU_PASSWORD"
+  },
+  "SMTP": {
+    "Host": "",
+    "Port": "587",
+    "User": "",
+    "Pass": ""
+  }
+}
+```
+
+> El SMTP es opcional. Si se deja vacío, el sistema funciona igual y omite el envío de emails.
+
+### 3. Crear la base de datos
+
+```bash
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS kepler_core CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+### 4. Aplicar migraciones (Entity Framework)
+
+```bash
+dotnet ef database update
+```
+
+> Si no tienes las herramientas de EF instaladas:
+> ```bash
+> dotnet tool install --global dotnet-ef
+> ```
+
+### 5. Insertar un operador inicial
+
+Dado que el login compara contraseñas en texto plano, inserta el primer operador directamente en MySQL:
+
+```sql
+INSERT INTO operators (identifier, full_name, password_hash, role, created_at)
+VALUES ('ADMIN_01', 'Administrador', 'admin123', 'OPERATOR', NOW());
+```
+
+### 6. Ejecutar la aplicación
+
+```bash
+dotnet run
+```
+
+La app estará disponible en `https://localhost:5001` o `http://localhost:5000`.
+
+---
+
+## Flujo de uso
+
+```
+Login → Cola de Turnos → Iniciar Sesión
+                              ↓
+                    Driver Registry → Registrar participante
+                              ↓
+                    Buscar & Asignar → Asignar a la cola
+                              ↓
+                    Cola de Turnos → Avanzar / Cancelar turnos
+```
+
+1. **Login** — Inicia sesión con tu Marshal ID y contraseña.
+2. **Cola de Turnos** — Haz clic en **Iniciar Sesión** para abrir una sesión activa.
+3. **Driver Registry** — Registra participantes con nombre, Grid ID y License Grade.
+4. **Buscar & Asignar** — Busca un participante ya registrado y asígnalo a la cola.
+5. **Cola de Turnos** — Usa **Avanzar Cola** para pasar al siguiente turno. El timer muestra el tiempo en pista del turno activo.
+6. **Finalizar Sesión** — Cierra la sesión activa cuando termines.
+
+---
+
+## Estructura del proyecto
+
+```
+kepler/
+├── Controllers/
+│   ├── AuthController.cs         # Login, Logout, Crear operador, /Auth/Me
+│   ├── DashboardController.cs    # Driver Registry, Tiquetes, API participantes
+│   ├── QueueController.cs        # Cola, stats, avanzar, cancelar, sesión activa
+│   ├── SessionController.cs      # Iniciar y finalizar sesión
+│   └── HomeController.cs         # Redirección raíz
+│
+├── Models/
+│   ├── Operator.cs               # Usuario del sistema
+│   ├── Session.cs                # Sesión de atención
+│   ├── Participant.cs            # Persona registrada en el sistema
+│   ├── QueueEntry.cs             # Turno en la cola
+│   ├── StintSlot.cs              # Slots físicos de atención
+│   └── SessionLog.cs             # Auditoría de acciones
+│
+├── ViewModels/
+│   ├── LoginViewModel.cs
+│   ├── RegisterViewModel.cs
+│   └── QueueViewModel.cs
+│
+├── Services/
+│   ├── QueueService.cs           # Lógica de cola (add, advance, prioridad)
+│   ├── SessionService.cs         # Crear sesiones
+│   └── EmailService.cs           # Notificaciones (opcional)
+│
+├── Data/
+│   └── AppDbContext.cs           # EF Core DbContext + mapeo de tablas
+│
+├── Views/
+│   ├── Auth/
+│   │   ├── Login.cshtml          # Pantalla de login
+│   │   └── Register.cshtml       # Crear nuevo operador (requiere auth)
+│   ├── Dashboard/
+│   │   ├── Index.cshtml          # Driver Registry (registro de participantes)
+│   │   └── Tickets.cshtml        # Historial de tiquetes (localStorage)
+│   ├── Queue/
+│   │   └── Index.cshtml          # Cola de turnos en tiempo real
+│   └── Home/
+│       └── Index.cshtml          # Redirección automática
+│
+├── wwwroot/
+│   ├── js/
+│   │   ├── shared.js             # Sidebar, topbar, toasts, print — todas las páginas
+│   │   ├── login.js              # UX del login
+│   │   ├── registro.js           # Lógica Driver Registry
+│   │   ├── cola.js               # Lógica Cola de Turnos
+│   │   └── tiquetes.js           # Lógica Tiquetes (localStorage)
+│   └── css/
+│       └── styles.css            # Estilos globales
+│
+├── appsettings.json              # Cadena de conexión y SMTP
+├── Program.cs                    # Configuración de la app
+└── Kepler-Trackline-Alliance.csproj
+```
+
+---
+
+## Rutas de la aplicación
+
+| Ruta | Método | Auth | Descripción |
+|---|---|---|---|
+| `/` | GET | No | Redirige al login o a la cola |
+| `/Auth/Login` | GET/POST | No | Login de operadores |
+| `/Auth/Logout` | GET | No | Cerrar sesión |
+| `/Auth/Register` | GET/POST | Sí | Crear nuevo operador |
+| `/Auth/Me` | GET | Sí | Info del operador actual (JSON) |
+| `/Queue/Index` | GET | Sí | Cola de turnos |
+| `/Queue/GetQueue` | GET | Sí | Estado de la cola (JSON) |
+| `/Queue/GetStats` | GET | Sí | Estadísticas de la sesión (JSON) |
+| `/Queue/GetActiveSession` | GET | Sí | Sesión activa actual (JSON) |
+| `/Queue/Advance` | POST | Sí | Avanzar la cola |
+| `/Queue/Cancel` | POST | Sí | Cancelar un turno |
+| `/Queue/AddParticipant` | POST | Sí | Agregar participante a la cola |
+| `/Dashboard/Index` | GET | Sí | Driver Registry |
+| `/Dashboard/Tickets` | GET | Sí | Historial de tiquetes |
+| `/Dashboard/GetParticipants` | GET | Sí | Lista de participantes (JSON) |
+| `/Dashboard/RegisterParticipant` | POST | Sí | Registrar nuevo participante |
+| `/Dashboard/AssignToQueue` | POST | Sí | Asignar participante a cola activa |
+| `/Session/Start` | POST | Sí | Iniciar sesión de atención |
+| `/Session/End` | POST | Sí | Finalizar sesión de atención |
+
+---
+
+## Modelo de base de datos
+
+### Diagrama de relaciones
 
 ```
 operators ──< sessions ──< queue_entries >── participants
-                │                │
-                │                └──< stint_slots
                 │
                 └──< session_log
 ```
 
----
+### Tablas
 
-## Tablas
-
-### 1. `operators`
-
+#### `operators`
 Usuarios del sistema que abren sesiones y gestionan la cola.
 
 | Columna | Tipo | Descripción |
 |---|---|---|
 | `id` | INT UNSIGNED PK | Identificador único |
-| `identifier` | VARCHAR(50) UNIQUE | Código de operador (`ID_ALPHA_00`) |
+| `identifier` | VARCHAR(50) UNIQUE | Código de acceso (`MARSHAL_01`) |
 | `full_name` | VARCHAR(120) | Nombre completo |
-| `password_hash` | VARCHAR(255) | Contraseña hasheada (bcrypt) |
-| `role` | ENUM | `ADMIN` · `OPERATOR` |
+| `password_hash` | VARCHAR(255) | Contraseña (texto plano en esta versión) |
+| `role` | VARCHAR(20) | `OPERATOR` |
 | `created_at` | DATETIME | Fecha de registro |
 
-**Notas:**
-- El rol `ADMIN` puede crear sesiones y gestionar participantes.
-- El rol `OPERATOR` puede mover entradas en la cola y actualizar estados.
-
----
-
-### 2. `sessions`
-
-Una sesión representa una jornada de atención abierta por un operador. Toda la cola y sus movimientos pertenecen a una sesión activa.
+#### `sessions`
+Una sesión representa una jornada de atención. Toda la cola pertenece a una sesión `LIVE`.
 
 | Columna | Tipo | Descripción |
 |---|---|---|
 | `id` | INT UNSIGNED PK | Identificador único |
-| `operator_id` | INT UNSIGNED FK | Operador que la gestiona |
-| `session_code` | VARCHAR(30) UNIQUE | Código legible (`SESSION_01`) |
-| `status` | ENUM | `STANDBY` · `LIVE` · `COMPLETED` · `TERMINATED` |
-| `started_at` | DATETIME | Momento de inicio real |
-| `ended_at` | DATETIME | Momento de cierre |
+| `operator_id` | INT UNSIGNED FK | Operador que la abrió |
+| `session_code` | VARCHAR(50) | Código generado automáticamente |
+| `status` | VARCHAR(20) | `STANDBY` · `LIVE` · `COMPLETED` |
+| `started_at` | DATETIME | Inicio real |
+| `ended_at` | DATETIME | Cierre |
 | `created_at` | DATETIME | Fecha de creación |
 
-**Ciclo de vida de una sesión:**
-
-```
-STANDBY → LIVE → COMPLETED
-                ↘ TERMINATED  (cierre forzado)
-```
-
-**FK:** `operator_id` → `operators.id` (RESTRICT)
-
----
-
-### 3. `participants`
-
-Personas registradas en el sistema que pueden ser añadidas a una cola. Su `grade` determina la prioridad con la que ingresan.
+#### `participants`
+Personas registradas. Su `grade` determina la prioridad en la cola.
 
 | Columna | Tipo | Descripción |
 |---|---|---|
 | `id` | INT UNSIGNED PK | Identificador único |
 | `full_name` | VARCHAR(120) | Nombre completo |
-| `grid_id` | VARCHAR(20) UNIQUE | Código único del participante (`KR-460-THX`) |
-| `grade` | ENUM | `S` (alta prioridad) · `A` (media) · `B` (estándar) |
-| `season_points` | SMALLINT UNSIGNED | Puntaje acumulado en la temporada |
-| `registered_at` | DATETIME | Fecha de registro en el sistema |
+| `grid_id` | VARCHAR(20) UNIQUE | Código único (`KR-460-THX`) |
+| `grade` | VARCHAR(2) | `S` (alta prioridad) · `A` · `B` |
+| `season_points` | INT | Puntaje acumulado |
+| `registered_at` | DATETIME | Fecha de registro |
 
-**Regla de prioridad por grade:**
+**Regla de prioridad:**
 
-| Grade | `priority` en cola | Comportamiento |
+| Grade | Priority en cola | Comportamiento |
 |---|---|---|
-| `S` | `HIGH` | Entra antes que todos los `NORMAL` |
-| `A` | `NORMAL` | Orden de llegada entre A y B |
-| `B` | `NORMAL` | Orden de llegada entre A y B |
+| `S` | `HIGH` | Entra antes que todos los NORMAL |
+| `A` | `NORMAL` | Orden de llegada |
+| `B` | `NORMAL` | Orden de llegada |
 
----
-
-### 4. `queue_entries`
-
-**Tabla principal del sistema.** Cada fila representa un turno en la cola para una sesión específica.
+#### `queue_entries`
+Tabla principal. Cada fila es un turno en la cola de una sesión.
 
 | Columna | Tipo | Descripción |
 |---|---|---|
 | `id` | INT UNSIGNED PK | Identificador único |
 | `session_id` | INT UNSIGNED FK | Sesión a la que pertenece |
 | `participant_id` | INT UNSIGNED FK | Participante en turno |
-| `position` | SMALLINT UNSIGNED | Posición actual en la cola (1 = primero) |
-| `priority` | ENUM | `HIGH` · `NORMAL` |
-| `status` | ENUM | Ver ciclo de vida abajo |
-| `estimated_start_s` | DECIMAL(9,2) | Tiempo estimado de inicio en segundos |
-| `session_time_s` | DECIMAL(9,2) | Duración real de la atención en segundos |
-| `entered_at` | DATETIME | Cuando se añadió a la cola |
-| `started_at` | DATETIME | Cuando pasó a `ON_TRACK` |
-| `completed_at` | DATETIME | Cuando finalizó la atención |
+| `position` | INT | Posición en la cola |
+| `priority` | VARCHAR(10) | `HIGH` · `NORMAL` |
+| `status` | VARCHAR(20) | Ver ciclo de vida |
+| `estimated_start_s` | DECIMAL | Tiempo estimado de inicio (segundos) |
+| `session_time_s` | DECIMAL | Duración real de atención (segundos) |
+| `entered_at` | DATETIME | Cuando ingresó a la cola |
+| `started_at` | DATETIME | Cuando pasó a ON_TRACK |
+| `completed_at` | DATETIME | Cuando finalizó |
 
 **Ciclo de vida de un turno:**
 
@@ -120,224 +283,68 @@ QUEUED → UP_NEXT → ON_TRACK → COMPLETED
 CANCELLED          CANCELLED
 ```
 
-| Status | Pantalla equivalente | Descripción |
-|---|---|---|
-| `ON_TRACK` | Panel "EN PISTA" | Siendo atendido ahora |
-| `UP_NEXT` | Panel "PRÓXIMO" | El siguiente en entrar |
-| `QUEUED` | Panel "COLA" | En espera con posición asignada |
-| `COMPLETED` | — | Atención finalizada |
-| `CANCELLED` | — | Retirado de la cola |
+**Restricción:** `UNIQUE (session_id, participant_id)` — un participante no puede estar dos veces en la misma sesión activa.
 
-**Restricciones:**
-- `UNIQUE (session_id, participant_id)` — un participante no puede estar dos veces en la misma sesión.
-
-**FK:**
-- `session_id` → `sessions.id` (CASCADE)
-- `participant_id` → `participants.id` (RESTRICT)
-
----
-
-### 5. `stint_slots`
-
-Representa los **espacios físicos de atención** que el operador visualiza y gestiona en pantalla (panel de Stint Strategy). El operador asigna una `queue_entry` a un slot mediante drag & drop.
-
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | INT UNSIGNED PK | Identificador único |
-| `session_id` | INT UNSIGNED FK | Sesión a la que pertenece |
-| `queue_entry_id` | INT UNSIGNED FK | Turno asignado (`NULL` = slot vacío) |
-| `slot_order` | TINYINT UNSIGNED | Orden del slot (1 = principal) |
-| `slot_status` | ENUM | `ACTIVE` · `QUEUED` · `HOLD` · `BLOCKED` · `EMPTY` |
-| `assigned_at` | DATETIME | Cuando se asignó el turno al slot |
-
-**Estados de un slot:**
-
-| Status | Color en UI | Descripción |
-|---|---|---|
-| `ACTIVE` | Verde (`GREEN_LIT`) | Atención en curso |
-| `QUEUED` | Amarillo | En cola, listo para activar |
-| `HOLD` | Naranja (`HOLD_BOX`) | Pausado, esperando instrucción |
-| `BLOCKED` | Rojo | Bloqueado por el operador |
-| `EMPTY` | Gris | Sin asignar |
-
-**FK:**
-- `session_id` → `sessions.id` (CASCADE)
-- `queue_entry_id` → `queue_entries.id` (SET NULL al eliminar)
-
----
-
-### 6. `session_log`
-
-Registro cronológico de todas las acciones del operador durante una sesión. Equivale al "Race Control Log" del diseño. Permite auditoría y trazabilidad completa.
+#### `session_log`
+Auditoría completa de todas las acciones por sesión.
 
 | Columna | Tipo | Descripción |
 |---|---|---|
 | `id` | INT UNSIGNED PK | Identificador único |
 | `session_id` | INT UNSIGNED FK | Sesión relacionada |
 | `operator_id` | INT UNSIGNED FK | Operador que ejecutó la acción |
-| `action_type` | ENUM | Tipo de acción (ver tabla abajo) |
-| `notes` | TEXT | Detalle libre de la acción |
-| `created_at` | DATETIME(3) | Timestamp con milisegundos |
+| `action_type` | VARCHAR(50) | Tipo de acción |
+| `notes` | TEXT | Detalle de la acción |
+| `created_at` | DATETIME | Timestamp |
 
-**Tipos de acción registrados:**
+**Tipos de acción registrados:** `ENTRY_ADDED` · `ENTRY_ON_TRACK` · `ENTRY_PROMOTED` · `ENTRY_COMPLETED` · `ENTRY_CANCELLED`
 
-| `action_type` | Descripción |
+---
+
+## Lógica de negocio
+
+### Insertar participante con prioridad
+
+```
+Si grade == "S" → priority = HIGH
+  → Buscar la primera posición QUEUED/NORMAL
+  → Desplazar todas las posiciones >= ese punto +1
+  → Insertar en esa posición
+Si grade != "S" → priority = NORMAL
+  → Insertar al final (MAX(position) + 1)
+```
+
+### Avanzar la cola
+
+```
+1. Completar ON_TRACK actual → status = COMPLETED
+2. Promover UP_NEXT → status = ON_TRACK
+   (si no hay UP_NEXT, promover el primero de QUEUED)
+3. Promover el siguiente QUEUED → status = UP_NEXT
+```
+
+---
+
+## Dependencias NuGet
+
+| Paquete | Versión |
 |---|---|
-| `SESSION_STARTED` | La sesión fue abierta |
-| `SESSION_ENDED` | La sesión fue cerrada normalmente |
-| `ENTRY_ADDED` | Nuevo participante añadido a la cola |
-| `ENTRY_PROMOTED` | Participante subió de prioridad |
-| `ENTRY_MOVED` | Participante cambió de posición |
-| `ENTRY_ON_TRACK` | Participante pasó a ser atendido |
-| `ENTRY_COMPLETED` | Atención finalizada |
-| `ENTRY_CANCELLED` | Participante retirado de la cola |
-| `SLOT_ASSIGNED` | Un turno fue asignado a un slot |
-| `SLOT_BLOCKED` | Un slot fue bloqueado por el operador |
-
-**FK:**
-- `session_id` → `sessions.id` (CASCADE)
-- `operator_id` → `operators.id` (SET NULL)
+| `Microsoft.EntityFrameworkCore` | 9.0.0 |
+| `Pomelo.EntityFrameworkCore.MySql` | 9.0.0 |
 
 ---
 
-## Índices
+## Notas de la versión 2.0
 
-| Índice | Tabla | Columnas | Propósito |
-|---|---|---|---|
-| `idx_queue_session_status` | `queue_entries` | `session_id, status` | Filtrar cola por estado |
-| `idx_queue_session_position` | `queue_entries` | `session_id, position` | Ordenar cola por posición |
-| `idx_stint_session` | `stint_slots` | `session_id, slot_order` | Listar slots en orden |
-| `idx_log_session_time` | `session_log` | `session_id, created_at` | Log cronológico por sesión |
-
----
-
-## Vista: `vw_queue_status`
-
-Muestra el estado completo de la cola activa, ordenado por estado y posición.
-
-```sql
-SELECT * FROM vw_queue_status;
-```
-
-**Columnas devueltas:**
-
-| Columna | Descripción |
-|---|---|
-| `position` | Posición en la cola |
-| `full_name` | Nombre del participante |
-| `grid_id` | Código único |
-| `grade` | Grado S / A / B |
-| `season_points` | Puntos acumulados |
-| `priority` | HIGH / NORMAL |
-| `status` | Estado actual del turno |
-| `estimated_start_s` | Tiempo estimado de inicio |
-| `session_time_s` | Tiempo real de atención |
-| `entered_at` | Cuándo ingresó a la cola |
-| `started_at` | Cuándo comenzó a ser atendido |
-
-**Orden de resultados:** `ON_TRACK → UP_NEXT → QUEUED → COMPLETED → CANCELLED`
+- Login sin hasheo de contraseñas (comparación directa)
+- Registro de participantes independiente de la sesión activa
+- Endpoint `/Dashboard/AssignToQueue` separado del registro
+- Serialización JSON en camelCase explícito en todos los endpoints
+- Manejo global de errores — ninguna excepción cae al usuario sin respuesta controlada
+- Nombre del operador visible en el sidebar via `/Auth/Me`
+- Botón "Finalizar Sesión" en la Cola de Turnos
+- Panel "Próximo en Cola" en tiempo real
 
 ---
 
-## Lógica de negocio clave
-
-### Insertar un participante en la cola
-
-```sql
--- 1. Determinar la prioridad según el grade del participante
--- 2. Si priority = HIGH → insertar antes de los NORMAL
---    Si priority = NORMAL → insertar al final de la cola FIFO
-
-INSERT INTO queue_entries (session_id, participant_id, position, priority, status)
-VALUES (
-  :session_id,
-  :participant_id,
-  (SELECT COALESCE(MAX(position), 0) + 1 FROM queue_entries
-   WHERE session_id = :session_id AND status = 'QUEUED'),
-  :priority,   -- HIGH o NORMAL según grade del participante
-  'QUEUED'
-);
-```
-
-### Avanzar la cola (llamar al siguiente)
-
-```sql
--- Completar el ON_TRACK actual
-UPDATE queue_entries
-SET status = 'COMPLETED', completed_at = NOW()
-WHERE session_id = :session_id AND status = 'ON_TRACK';
-
--- Promover UP_NEXT a ON_TRACK
-UPDATE queue_entries
-SET status = 'ON_TRACK', started_at = NOW()
-WHERE session_id = :session_id AND status = 'UP_NEXT';
-
--- Promover el primero en QUEUED a UP_NEXT
-UPDATE queue_entries
-SET status = 'UP_NEXT'
-WHERE session_id = :session_id AND status = 'QUEUED'
-ORDER BY priority DESC, position ASC
-LIMIT 1;
-```
-
-### Consultar estado del panel de pits (On Track / Up Next / Cola)
-
-```sql
--- EN PISTA
-SELECT p.full_name, qe.session_time_s
-FROM queue_entries qe JOIN participants p ON qe.participant_id = p.id
-WHERE qe.session_id = :session_id AND qe.status = 'ON_TRACK';
-
--- PRÓXIMO
-SELECT p.full_name, p.grade, qe.estimated_start_s
-FROM queue_entries qe JOIN participants p ON qe.participant_id = p.id
-WHERE qe.session_id = :session_id AND qe.status = 'UP_NEXT';
-
--- COLA (con tiempo estimado de inicio)
-SELECT qe.position, p.full_name, qe.estimated_start_s
-FROM queue_entries qe JOIN participants p ON qe.participant_id = p.id
-WHERE qe.session_id = :session_id AND qe.status = 'QUEUED'
-ORDER BY qe.position ASC;
-```
-
----
-
-## Instrucciones de instalación
-
-```bash
-# Crear la base de datos y ejecutar el script
-mysql -u root -p < kepler_core_database.sql
-
-# Verificar las tablas creadas
-mysql -u root -p kepler_core -e "SHOW TABLES;"
-```
-
-**Tablas esperadas:**
-
-```
-+------------------------+
-| Tables_in_kepler_core  |
-+------------------------+
-| operators              |
-| sessions               |
-| participants           |
-| queue_entries          |
-| stint_slots            |
-| session_log            |
-+------------------------+
-```
-
----
-
-## Requisitos del servidor
-
-| Requisito | Mínimo |
-|---|---|
-| MySQL | 8.0+ |
-| Almacenamiento inicial | ~5 MB |
-| Charset | utf8mb4 |
-| Engine | InnoDB (requerido para FK) |
-
----
-
-*KEPLER / TRACKLINE ALLIANCE — Database Docs v1.0*
+*KEPLER / TRACKLINE ALLIANCE — v2.0*

@@ -5,8 +5,10 @@ obj/
 *.dll
 *.pdb
 *.nupkg
+.vscode/
 
 ## [Rider & Visual Studio]
+appsettings.json
 .idea/
 .vs/
 *.user
