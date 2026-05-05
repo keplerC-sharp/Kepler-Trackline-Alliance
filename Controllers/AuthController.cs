@@ -121,11 +121,14 @@ public class AuthController : Controller
                 return View(model);
             }
 
+            var hashedPassword = BCrypt.Net.BCrypt.HashPassword(model.Password);
+            _logger.LogInformation("Registrando nuevo operador: {Identifier}. Hash generado: {Hash}", model.Identifier, hashedPassword);
+
             var user = new Operator
             {
                 Identifier   = model.Identifier,
                 FullName     = model.FullName,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(model.Password), // Contraseña hasheada
+                PasswordHash = hashedPassword,
                 Role         = "OPERATOR"
             };
 

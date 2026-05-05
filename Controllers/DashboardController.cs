@@ -71,29 +71,21 @@ public class DashboardController : Controller
         {
             if (req == null
                 || string.IsNullOrWhiteSpace(req.FullName)
-                || string.IsNullOrWhiteSpace(req.Document)
                 || string.IsNullOrWhiteSpace(req.GridId))
-                return Json(new { ok = false, error = "Nombre, Documento y Grid ID son requeridos" });
+                return Json(new { ok = false, error = "Nombre y Grid ID son requeridos" });
 
-            var gridId   = req.GridId.Trim().ToUpperInvariant();
-            var document = req.Document.Trim();
+            var gridId = req.GridId.Trim().ToUpperInvariant();
 
             var existing = await _context.Participants
-                .FirstOrDefaultAsync(p => p.GridId == gridId || p.Document == document);
+                .FirstOrDefaultAsync(p => p.GridId == gridId);
 
             if (existing != null)
-            {
-                var field = existing.GridId == gridId ? "Grid ID" : "Documento";
-                return Json(new { ok = false, error = $"{field} ya está registrado" });
-            }
+                return Json(new { ok = false, error = $"Grid ID {gridId} ya está registrado" });
 
             var participant = new Participant
             {
                 FullName     = req.FullName.Trim(),
-                Document     = document,
                 GridId       = gridId,
-                Category     = req.Category ?? "Casual",
-                Age          = req.Age ?? 0,
                 Grade        = req.Grade ?? "B",
                 SeasonPoints = req.SeasonPoints ?? 0
             };
@@ -107,35 +99,6 @@ public class DashboardController : Controller
         {
             _logger.LogError(ex, "Error al registrar participante {GridId}", req?.GridId);
             return Json(new { ok = false, error = "Error interno al registrar" });
-        }
-    }
-
-    // ── API POST /Dashboard/UpdateParticipant ────────────────────────────────
-    [HttpPost]
-    public async Task<IActionResult> UpdateParticipant([FromBody] UpdateParticipantRequest req)
-    {
-        try
-        {
-            if (req == null || req.Id == 0)
-                return Json(new { ok = false, error = "ID de participante inválido" });
-
-            var p = await _context.Participants.FindAsync(req.Id);
-            if (p == null)
-                return Json(new { ok = false, error = "Participante no encontrado" });
-
-            if (!string.IsNullOrWhiteSpace(req.FullName)) p.FullName = req.FullName.Trim();
-            if (!string.IsNullOrWhiteSpace(req.Category)) p.Category = req.Category;
-            if (req.Age.HasValue) p.Age = req.Age.Value;
-            if (req.SeasonPoints.HasValue) p.SeasonPoints = req.SeasonPoints.Value;
-            if (!string.IsNullOrWhiteSpace(req.Grade)) p.Grade = req.Grade;
-
-            await _context.SaveChangesAsync();
-            return Json(new { ok = true });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error al actualizar participante {Id}", req?.Id);
-            return Json(new { ok = false, error = "Error al actualizar datos" });
         }
     }
 
@@ -165,8 +128,7 @@ public class DashboardController : Controller
 
             var alreadyIn = await _context.QueueEntries.AnyAsync(q =>
                 q.SessionId     == req.SessionId &&
-                q.ParticipantId == participant.Id &&
-                q.Status != "COMPLETED" && q.Status != "CANCELLED");
+                q.ParticipantId == participant.Id);
 
             if (alreadyIn)
                 return Json(new { ok = false, error = "El participante ya está en la cola activa" });
@@ -199,20 +161,9 @@ public class DashboardController : Controller
 
 public record RegisterParticipantRequest(
     string  FullName,
-    string  Document,
     string  GridId,
-    string? Category,
-    int?    Age,
     string? Grade,
     int?    SeasonPoints);
-
-public record UpdateParticipantRequest(
-    uint    Id,
-    string? FullName,
-    string? Category,
-    int?    Age,
-    int?    SeasonPoints,
-    string? Grade);
 
 public record AssignToQueueRequest(
     uint ParticipantId,
