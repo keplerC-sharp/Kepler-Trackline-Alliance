@@ -55,6 +55,7 @@ async function loadQueue() {
     updateCurrentTurn(data);
     updateUpNext(data);
     updateStatsFromQueue(data);
+    updateActionButtons(data);
   } catch (err) {
     console.error('Error cargando cola:', err);
     showToast('Error al cargar la cola', 'error');
@@ -251,6 +252,28 @@ function updateStatsFromQueue(entries) {
   if (sq) sq.textContent = entries.filter(e => e.status === 'QUEUED' || e.status === 'UP_NEXT').length;
   
   // statDone se actualiza vía loadAdvancedStats para mayor precisión histórica
+}
+
+function updateActionButtons(entries) {
+  const btn = document.getElementById('btnAdvance');
+  if (!btn) return;
+  
+  const hasMore = entries.some(e => e.status === 'QUEUED' || e.status === 'UP_NEXT');
+  const onTrack = entries.some(e => e.status === 'ON_TRACK');
+
+  if (!onTrack && !hasMore) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-slash-circle"></i> No hay turnos';
+    btn.style.opacity = '0.5';
+  } else if (!hasMore) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Finalizar Turno';
+    btn.style.opacity = '1';
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Finalizar y Siguiente';
+    btn.style.opacity = '1';
+  }
 }
 
 // ── Avanzar cola ──────────────────────────────────────────────────────────

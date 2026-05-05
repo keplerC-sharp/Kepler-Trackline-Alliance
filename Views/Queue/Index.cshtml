@@ -18,109 +18,141 @@
 <div class="row g-4">
   <!-- COLUMNA IZQUIERDA: COLA -->
   <div class="col-lg-8">
-    <div class="z-panel">
-      <div class="panel-title">
-        <i class="bi bi-list-ol"></i> Lista de Turnos
-      </div>
-      <div class="panel-body">
-        <!-- Dashboard Stats Grid -->
-        <div class="row g-3 mb-4">
-          <div class="col-6 col-md-3">
-            <div class="stat-mini">
-              <div class="stat-mini-val" id="statDone" style="color:var(--green);">0</div>
-              <div class="stat-mini-label">Atendidos</div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="stat-mini">
-              <div class="stat-mini-val" id="statQueued" style="color:var(--yellow);">0</div>
-              <div class="stat-mini-label">En Cola</div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="stat-mini">
-              <div class="stat-mini-val" id="statAvgTime" style="color:var(--cyan);">0m</div>
-              <div class="stat-mini-label">T. Promedio</div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="stat-mini">
-              <div class="stat-mini-val" id="statTurnRate" style="color:var(--orange);">0/h</div>
-              <div class="stat-mini-label">Frecuencia</div>
-            </div>
-          </div>
-        </div>
-
-        <div id="nextPilotBanner" class="status-log mb-4" style="display:none; border-color:var(--yellow); background:rgba(255,214,0,0.02);">
-          <div class="status-log-title" style="color:var(--yellow);">
-            <i class="bi bi-person-up"></i> Próximo en Pista
-          </div>
-          <div class="status-log-body" id="nextPilotName" style="font-weight:700; font-size:1rem; color:var(--text);">
-            Cargando...
-          </div>
-        </div>
-
-        <div class="queue-list" id="queueList">
-          <div class="text-center py-5 text-dim">
-            <div class="spinner-border spinner-border-sm mb-2"></div>
-            <p>Sincronizando con la pista...</p>
-          </div>
+    @if (Model.SessionId == 0)
+    {
+      <div class="z-panel" style="border-color:var(--cyan); background:rgba(0,183,255,0.05);">
+        <div class="panel-body text-center py-5">
+          <i class="bi bi-play-circle" style="font-size:3rem; color:var(--cyan); opacity:0.5;"></i>
+          <h2 class="mt-3" style="font-family:var(--font-display); font-weight:900;">NO HAY SESIÓN ACTIVA</h2>
+          <p class="text-dim">Inicia una nueva sesión de pista para comenzar a recibir pilotos.</p>
+          <form asp-controller="Session" asp-action="Start" method="post">
+            <button type="submit" class="btn-primary mt-3" style="padding:12px 30px; font-size:1.1rem;">
+              <i class="bi bi-lightning-fill"></i> INICIAR NUEVA SESIÓN
+            </button>
+          </form>
         </div>
       </div>
-    </div>
+    }
+    else
+    {
+      <div class="z-panel">
+        <div class="panel-title">
+          <i class="bi bi-list-ol"></i> Lista de Turnos
+        </div>
+        <div class="panel-body">
+          <!-- Dashboard Stats Grid -->
+          <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+              <div class="stat-mini">
+                <div class="stat-mini-val" id="statDone" style="color:var(--green);">0</div>
+                <div class="stat-mini-label">Atendidos</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="stat-mini">
+                <div class="stat-mini-val" id="statQueued" style="color:var(--yellow);">0</div>
+                <div class="stat-mini-label">En Cola</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="stat-mini">
+                <div class="stat-mini-val" id="statAvgTime" style="color:var(--cyan);">0m</div>
+                <div class="stat-mini-label">T. Promedio</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="stat-mini">
+                <div class="stat-mini-val" id="statTurnRate" style="color:var(--orange);">0/h</div>
+                <div class="stat-mini-label">Frecuencia</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="nextPilotBanner" class="status-log mb-4" style="display:none; border-color:var(--yellow); background:rgba(255,214,0,0.02);">
+            <div class="status-log-title" style="color:var(--yellow);">
+              <i class="bi bi-person-up"></i> Próximo en Pista
+            </div>
+            <div class="status-log-body" id="nextPilotName" style="font-weight:700; font-size:1rem; color:var(--text);">
+              Cargando...
+            </div>
+          </div>
+
+          <div class="queue-list" id="queueList">
+            <div class="text-center py-5 text-dim">
+              <div class="spinner-border spinner-border-sm mb-2"></div>
+              <p>Sincronizando con la pista...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
   </div>
 
   <!-- COLUMNA DERECHA: ACCIONES Y DETALLE -->
   <div class="col-lg-4">
-    <div class="z-panel red-accent">
-      <div class="panel-title">
-        <i class="bi bi-lightning-fill"></i> Control de Atención
-      </div>
-      <div class="panel-body">
-        <div id="currentTurnPanel">
-          <div class="text-center py-4 text-muted">
-            Sin turno activo
+    @if (Model.SessionId > 0)
+    {
+      <div class="z-panel red-accent">
+        <div class="panel-title">
+          <i class="bi bi-lightning-fill"></i> Control de Atención
+        </div>
+        <div class="panel-body">
+          <div id="currentTurnPanel">
+            <div class="text-center py-4 text-muted">
+              Sin turno activo
+            </div>
+          </div>
+
+          <!-- Timer y Progreso -->
+          <div class="mt-4">
+            <div id="bigTimer" class="big-timer">--:--</div>
+            <div class="progress-bar-wrap mt-2" style="height:6px;">
+              <div id="mainProgressBar" class="progress-bar-fill" style="width:0%;"></div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;margin-top:16px;gap:10px;">
+            <div style="display:flex;gap:8px;">
+              <button id="btnAdvance" class="btn-primary" style="flex:1;justify-content:center;background:var(--green);border-color:var(--green);color:var(--bg);" onclick="advanceQueue()">
+                <i class="bi bi-check-circle-fill"></i> Finalizar y Siguiente
+              </button>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-outline" style="flex:1;justify-content:center;" onclick="reannounceCurrent()">
+                <i class="bi bi-megaphone-fill"></i> Llamar de Nuevo
+              </button>
+              <a href="/Dashboard/Index" class="btn-outline"
+                 style="flex:1;justify-content:center;text-decoration:none;">
+                <i class="bi bi-person-plus"></i> Agregar
+              </a>
+            </div>
           </div>
         </div>
+      </div>
 
-        <!-- Timer y Progreso -->
-        <div class="mt-4">
-          <div id="bigTimer" class="big-timer">--:--</div>
-          <div class="progress-bar-wrap mt-2" style="height:6px;">
-            <div id="mainProgressBar" class="progress-bar-fill" style="width:0%;"></div>
-          </div>
+      <div class="z-panel mt-4">
+        <div class="panel-title">
+          <i class="bi bi-chat-left-dots"></i> Notas Rápidas
         </div>
-
-        <div style="display:flex;flex-direction:column;margin-top:16px;gap:10px;">
-          <div style="display:flex;gap:8px;">
-            <button class="btn-primary" style="flex:1;justify-content:center;background:var(--green);border-color:var(--green);color:var(--bg);" onclick="advanceQueue()">
-              <i class="bi bi-check-circle-fill"></i> Finalizar y Siguiente
-            </button>
-          </div>
-          <div style="display:flex;gap:8px;">
-            <button class="btn-outline" style="flex:1;justify-content:center;" onclick="reannounceCurrent()">
-              <i class="bi bi-megaphone-fill"></i> Llamar de Nuevo
-            </button>
-            <a href="/Dashboard/Index" class="btn-outline"
-               style="flex:1;justify-content:center;text-decoration:none;">
-              <i class="bi bi-person-plus"></i> Agregar
-            </a>
-          </div>
+        <div class="panel-body">
+          <textarea id="quickNotes" class="z-field-input" rows="3" placeholder="Añadir comentario al turno actual..."></textarea>
+          <button class="btn-outline mt-2 w-100" style="justify-content:center;" onclick="saveComment()">
+            <i class="bi bi-save"></i> Guardar Comentario
+          </button>
         </div>
       </div>
-    </div>
 
-    <div class="z-panel mt-4">
-      <div class="panel-title">
-        <i class="bi bi-chat-left-dots"></i> Notas Rápidas
+      <!-- BOTÓN TERMINAR SESIÓN -->
+      <div class="mt-4">
+        <form asp-controller="Session" asp-action="End" method="post">
+          <input type="hidden" name="sessionId" value="@Model.SessionId" />
+          <button type="submit" class="btn-outline w-100" style="border-color:var(--red); color:var(--red); justify-content:center;"
+                  onclick="return confirm('¿Seguro que deseas finalizar la sesión actual?')">
+            <i class="bi bi-stop-circle me-2"></i> FINALIZAR SESIÓN DE PISTA
+          </button>
+        </form>
       </div>
-      <div class="panel-body">
-        <textarea id="quickNotes" class="z-field-input" rows="3" placeholder="Añadir comentario al turno actual..."></textarea>
-        <button class="btn-outline mt-2 w-100" style="justify-content:center;" onclick="saveComment()">
-          <i class="bi bi-save"></i> Guardar Comentario
-        </button>
-      </div>
-    </div>
+    }
   </div>
 </div>
 
