@@ -144,18 +144,42 @@
 
       <!-- ADMINISTRATIVE: Session Finalization -->
       <div class="mt-4">
-        <form asp-controller="Session" asp-action="End" method="post">
-          <input type="hidden" name="sessionId" value="@Model.SessionId" />
-          <button type="submit" class="btn-outline w-100" style="border-color:var(--red); color:var(--red); justify-content:center;"
-                  onclick="return confirm('Are you sure you want to finalize the current track session? This action is irreversible.')">
-            <i class="bi bi-stop-circle me-2"></i> CLOSE TRACK SESSION
-          </button>
-        </form>
+        <button type="button" class="btn-outline w-100" style="border-color:var(--red); color:var(--red); justify-content:center;" data-bs-toggle="modal" data-bs-target="#closeSessionModal">
+          <i class="bi bi-stop-circle me-2"></i> CLOSE TRACK SESSION
+        </button>
       </div>
     }
   </div>
 </div>
 
+<!-- Close Session Modal -->
+<div class="modal fade" id="closeSessionModal" tabindex="-1" aria-labelledby="closeSessionModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content z-panel" style="background-color: var(--panel-bg); color: var(--text); border: 1px solid var(--border);">
+      <form asp-controller="Session" asp-action="End" method="post">
+        <div class="modal-header" style="border-bottom: 1px solid var(--border);">
+          <h5 class="modal-title" id="closeSessionModalLabel" style="color: var(--red);"><i class="bi bi-exclamation-triangle-fill"></i> End Track Session</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to finalize the current track session? This action is irreversible.</p>
+          <div class="mb-3">
+            <label for="reportEmail" class="form-label" style="color:var(--text);">Send Session Report To (Optional)</label>
+            <input type="email" class="z-field-input" id="reportEmail" name="email" placeholder="operator@example.com">
+            <div class="form-text text-dim">Leave blank if you do not wish to receive a report.</div>
+          </div>
+          <input type="hidden" name="sessionId" value="@Model.SessionId" />
+        </div>
+        <div class="modal-footer" style="border-top: 1px solid var(--border);">
+          <button type="button" class="btn-outline" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn-primary" style="background:var(--red);border-color:var(--red);color:var(--bg);">
+            <i class="bi bi-stop-circle me-2"></i> Finalize Session
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 @section Scripts {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
   <script src="~/js/cola.js" asp-append-version="true"></script>

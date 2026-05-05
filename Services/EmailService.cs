@@ -22,7 +22,7 @@ public class EmailService
     /// Asynchronously dispatches an email message.
     /// Gracefully degrades if SMTP configuration is missing to ensure system uptime.
     /// </summary>
-    public async Task SendEmailAsync(string to, string subject, string body)
+    public async Task<(bool Success, string ErrorMessage)> SendEmailAsync(string to, string subject, string body)
     {
         try
         {
@@ -35,7 +35,7 @@ public class EmailService
             if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(user))
             {
                 _logger.LogWarning("SMTP Infrastructure not configured. Skipping email dispatch to {To}.", to);
-                return;
+                return (false, "SMTP configuration is missing. Email could not be sent.");
             }
 
             var port = int.TryParse(portStr, out var p) ? p : 587;
@@ -47,15 +47,25 @@ public class EmailService
                 EnableSsl   = true
             };
 
-            var mail = new MailMessage(user!, to, subject, body);
+            var mail = new MailMessage(user!, to, subject, body)
+            {
+                IsBodyHtml = true
+            };
             await smtp.SendMailAsync(mail);
             
             _logger.LogInformation("Email successfully dispatched to {To}.", to);
+            return (true, string.Empty);
+        }
+        catch (SmtpException smtpEx)
+        {
+            _logger.LogError(smtpEx, "SMTP error while sending to {To} with subject '{Subject}'.", to, subject);
+            return (false, $"SMTP Error: {smtpEx.Message}");
         }
         catch (Exception ex)
         {
             // Fail-safe: Email dispatch errors should never interrupt primary application flow.
             _logger.LogError(ex, "Mailing failure to {To} with subject '{Subject}'.", to, subject);
+            return (false, "An unexpected error occurred while sending the email.");
         }
     }
 }
