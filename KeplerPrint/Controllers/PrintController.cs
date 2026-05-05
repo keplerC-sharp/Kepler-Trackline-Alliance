@@ -4,6 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace KeplerPrint.Controllers
 {
+    /// <summary>
+    /// Dispatch controller for hardware print jobs.
+    /// Exposes endpoints for local network ticket generation.
+    /// </summary>
     [ApiController]
     [Route("api/print")]
     public class PrintController : ControllerBase
@@ -17,36 +21,75 @@ namespace KeplerPrint.Controllers
             _logger = logger;
         }
 
+        /// <summary>
+        /// Connectivity probe for the frontend to verify print server readiness.
+        /// </summary>
         [HttpGet("health")]
         public IActionResult Health() =>
-            Ok(new { ok = true, timestamp = DateTime.Now, proyecto = "Kepler-TrackAlliance" });
+            Ok(new { ok = true, timestamp = DateTime.Now, cluster = "Kepler-TrackAlliance-Uplink" });
 
-        [HttpPost("piloto")]
-        public IActionResult Piloto([FromBody] PrintPilotoRequest req)
+        /// <summary>
+        /// Dispatches a Pilot ID ticket to the local thermal printer.
+        /// </summary>
+        [HttpPost("pilot")]
+        public IActionResult Pilot([FromBody] PrintPilotoRequest req)
         {
-            try   { _print.ImprimirTicketPiloto(req);   return Ok(new { ok = true }); }
-            catch (Exception ex) { return StatusCode(500, new { ok = false, error = ex.Message }); }
+            try { 
+                _print.PrintPilotTicket(req); 
+                return Ok(new { ok = true }); 
+            }
+            catch (Exception ex) { 
+                _logger.LogError(ex, "Hardware print failure for Pilot Ticket.");
+                return StatusCode(500, new { ok = false, error = ex.Message }); 
+            }
         }
 
-        [HttpPost("vehiculo")]
-        public IActionResult Vehiculo([FromBody] PrintVehiculoRequest req)
+        /// <summary>
+        /// Dispatches a Vehicle Technical ticket to the local thermal printer.
+        /// </summary>
+        [HttpPost("vehicle")]
+        public IActionResult Vehicle([FromBody] PrintVehiculoRequest req)
         {
-            try   { _print.ImprimirTicketVehiculo(req); return Ok(new { ok = true }); }
-            catch (Exception ex) { return StatusCode(500, new { ok = false, error = ex.Message }); }
+            try { 
+                _print.PrintVehicleTicket(req); 
+                return Ok(new { ok = true }); 
+            }
+            catch (Exception ex) { 
+                _logger.LogError(ex, "Hardware print failure for Vehicle Ticket.");
+                return StatusCode(500, new { ok = false, error = ex.Message }); 
+            }
         }
 
-        [HttpPost("turno")]
-        public IActionResult Turno([FromBody] PrintTurnoRequest req)
+        /// <summary>
+        /// Dispatches a Queue Entry (Turn) ticket to the local thermal printer.
+        /// </summary>
+        [HttpPost("turn")]
+        public IActionResult Turn([FromBody] PrintTurnoRequest req)
         {
-            try   { _print.ImprimirTicketTurno(req);    return Ok(new { ok = true }); }
-            catch (Exception ex) { return StatusCode(500, new { ok = false, error = ex.Message }); }
+            try { 
+                _print.PrintTurnTicket(req); 
+                return Ok(new { ok = true }); 
+            }
+            catch (Exception ex) { 
+                _logger.LogError(ex, "Hardware print failure for Turn Ticket.");
+                return StatusCode(500, new { ok = false, error = ex.Message }); 
+            }
         }
 
-        [HttpPost("completo")]
-        public IActionResult Completo([FromBody] PrintRegistroCompletoRequest req)
+        /// <summary>
+        /// Dispatches a comprehensive registration dossier for offline record keeping.
+        /// </summary>
+        [HttpPost("full")]
+        public IActionResult Full([FromBody] PrintRegistroCompletoRequest req)
         {
-            try   { _print.ImprimirRegistroCompleto(req); return Ok(new { ok = true }); }
-            catch (Exception ex) { return StatusCode(500, new { ok = false, error = ex.Message }); }
+            try { 
+                _print.PrintFullRegistration(req); 
+                return Ok(new { ok = true }); 
+            }
+            catch (Exception ex) { 
+                _logger.LogError(ex, "Hardware print failure for Full Registration.");
+                return StatusCode(500, new { ok = false, error = ex.Message }); 
+            }
         }
     }
 }

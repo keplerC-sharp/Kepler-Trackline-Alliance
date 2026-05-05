@@ -8,6 +8,10 @@ using System.Security.Claims;
 
 namespace Kepler_Trackline_Alliance.Controllers;
 
+/// <summary>
+/// Exposed endpoints for session lifecycle control (Initialization and Finalization).
+/// Restricted to authorized personnel only.
+/// </summary>
 [Authorize]
 public class SessionController : Controller
 {
@@ -22,6 +26,10 @@ public class SessionController : Controller
         _logger  = logger;
     }
 
+    /// <summary>
+    /// POST handler to initiate a new live track session.
+    /// Redirects to the queue monitor upon success.
+    /// </summary>
     [HttpPost]
     public async Task<IActionResult> Start()
     {
@@ -32,12 +40,16 @@ public class SessionController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al iniciar sesión");
-            TempData["Error"] = "No se pudo iniciar la sesión. Intenta de nuevo.";
+            _logger.LogError(ex, "Failed to initiate session.");
+            TempData["Error"] = "Unable to start session. Please verify database connectivity.";
         }
         return RedirectToAction("Index", "Queue");
     }
 
+    /// <summary>
+    /// POST handler to gracefully close an active session.
+    /// Updates status and captures end-timestamp for analytics.
+    /// </summary>
     [HttpPost]
     public async Task<IActionResult> End(uint sessionId)
     {
@@ -53,8 +65,8 @@ public class SessionController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al finalizar sesión {SessionId}", sessionId);
-            TempData["Error"] = "No se pudo finalizar la sesión.";
+            _logger.LogError(ex, "Session termination failed for ID: {SessionId}", sessionId);
+            TempData["Error"] = "Session closure failed. Internal server error.";
         }
         return RedirectToAction("Index", "Queue");
     }

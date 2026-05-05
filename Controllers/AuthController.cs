@@ -11,20 +11,25 @@ using System.Security.Claims;
 
 namespace Kepler_Trackline_Alliance.Controllers;
 
+/// <summary>
+/// Manages identity and access control for the application.
+/// Utilizes Cookie-based authentication and BCrypt for secure credential storage.
+/// </summary>
 public class AuthController : Controller
 {
     private readonly AppDbContext _context;
-    private readonly EmailService _email;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(AppDbContext context, EmailService email, ILogger<AuthController> logger)
+    public AuthController(AppDbContext context, ILogger<AuthController> logger)
     {
         _context = context;
-        _email   = email;
         _logger  = logger;
     }
 
-    // ── GET /Auth/Login ──────────────────────────────────────────────────
+    /// <summary>
+    /// Serves the login interface. 
+    /// Redirects authenticated users directly to the track dashboard to optimize flow.
+    /// </summary>
     [HttpGet]
     public IActionResult Login()
     {
@@ -33,7 +38,10 @@ public class AuthController : Controller
         return View();
     }
 
-    // ── POST /Auth/Login ─────────────────────────────────────────────────
+    /// <summary>
+    /// Processes authentication attempts.
+    /// Validates credentials against PBKDF2/BCrypt hashes.
+    /// </summary>
     [HttpPost]
     public async Task<IActionResult> Login(LoginViewModel model)
     {
@@ -45,10 +53,9 @@ public class AuthController : Controller
             var op = await _context.Operators
                 .FirstOrDefaultAsync(o => o.Identifier == model.Identifier);
 
-            // Verificar contraseña usando BCrypt
             if (op == null || !BCrypt.Net.BCrypt.Verify(model.Password, op.PasswordHash))
             {
-                ModelState.AddModelError("", "Credenciales inválidas");
+                ModelState.AddModelError("", "Invalid credentials. Please verify your ID and password.");
                 return View(model);
             }
 
@@ -68,44 +75,48 @@ public class AuthController : Controller
                 principal,
                 new AuthenticationProperties { IsPersistent = model.Remember });
 
+            _logger.LogInformation("Operator {Identifier} authenticated successfully.", op.Identifier);
             return RedirectToAction("Index", "Queue");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error durante el login para {Identifier}", model.Identifier);
-            ModelState.AddModelError("", "Error del servidor. Intenta de nuevo.");
+            _logger.LogError(ex, "Authentication failure for identifier {Identifier}.", model.Identifier);
+            ModelState.AddModelError("", "Server error during authentication process. Please retry.");
             return View(model);
         }
     }
 
-    // ── GET /Auth/Logout ─────────────────────────────────────────────────
+    /// <summary>
+    /// Terminates the current session and clears authentication cookies.
+    /// </summary>
     [HttpGet]
     public async Task<IActionResult> Logout()
     {
         try
         {
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            // Limpiar cualquier cookie remanente
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al cerrar sesión");
+            _logger.LogError(ex, "Logout sequence failed.");
         }
         return RedirectToAction("Login");
     }
 
-    // ── GET /Auth/Register → redirige según autenticación ────────────────
-    // Si está autenticado → pantalla de registro de operadores
-    // Si no → al login
+    /// <summary>
+    /// Serves the operator onboarding view. Restricted to active staff.
+    /// </summary>
     [HttpGet]
+    [Authorize]
     public IActionResult Register()
     {
-        if (User.Identity?.IsAuthenticated == true)
-            return View(new RegisterViewModel());
-        return RedirectToAction("Login");
+        return View(new RegisterViewModel());
     }
 
-    // ── POST /Auth/Register → crear nuevo operador (solo si autenticado) ─
+    /// <summary>
+    /// Registers a new administrative operator.
+    /// Enforces identifier uniqueness to maintain record integrity.
+    /// </summary>
     [HttpPost]
     [Authorize]
     public async Task<IActionResult> Register(RegisterViewModel model)
@@ -118,19 +129,18 @@ public class AuthController : Controller
             var identifier = model.Identifier?.Trim();
             if (string.IsNullOrWhiteSpace(identifier))
             {
-                ModelState.AddModelError("Identifier", "El identificador es requerido");
+                ModelState.AddModelError("Identifier", "Identifier is mandatory.");
                 return View(model);
             }
 
             if (await _context.Operators.AnyAsync(o => o.Identifier.ToLower() == identifier.ToLower()))
             {
-                ModelState.AddModelError("Identifier", "Ese Identifier ya está en uso");
+                ModelState.AddModelError("Identifier", "Identifier already exists in the master record.");
                 return View(model);
             }
 
             var hashedPassword = BCrypt.Net.BCrypt.HashPassword(model.Password);
-            _logger.LogInformation("Registrando nuevo operador: {Identifier}. Hash generado: {Hash}", identifier, hashedPassword);
-
+            
             var user = new Operator
             {
                 Identifier   = identifier,
@@ -142,25 +152,28 @@ public class AuthController : Controller
             _context.Operators.Add(user);
             await _context.SaveChangesAsync();
 
-            TempData["Success"] = $"Operador '{model.FullName}' creado exitosamente.";
+            TempData["Success"] = $"Operator '{model.FullName}' registered successfully.";
             return RedirectToAction("Register");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al registrar operador {Identifier}", model.Identifier);
-            ModelState.AddModelError("", "Error al crear la cuenta. Intenta de nuevo.");
+            _logger.LogError(ex, "Operator registration failed for {Identifier}.", model.Identifier);
+            ModelState.AddModelError("", "Failed to create operator account. Database write error.");
             return View(model);
         }
     }
 
-    // ── GET /Auth/Me → info del usuario actual (para JS) ─────────────────
+    /// <summary>
+    /// Returns the profile data of the currently authenticated operator.
+    /// Used for client-side layout synchronization.
+    /// </summary>
     [HttpGet]
     [Authorize]
     public IActionResult Me()
     {
         var name = User.FindFirstValue(ClaimTypes.GivenName)
                 ?? User.FindFirstValue(ClaimTypes.Name)
-                ?? "Operador";
+                ?? "Operator";
         var id   = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0";
         var role = User.FindFirstValue(ClaimTypes.Role) ?? "OPERATOR";
         return Json(new { name, id, role });

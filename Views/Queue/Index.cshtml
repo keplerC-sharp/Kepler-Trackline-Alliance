@@ -1,33 +1,24 @@
 @model Kepler_Trackline_Alliance.ViewModels.QueueViewModel
 @{
-    ViewData["Title"] = "Panel de Turnos";
+  ViewData["Title"] = "Track Control";
 }
 
-<div class="page-heading">
-  <div style="display:flex;justify-content:space-between;align-items:flex-end;">
-    <div>
-      <h1>Control de Pista</h1>
-      <p>Gestión de cola y cronometraje en tiempo real</p>
-    </div>
-    <div class="badge-session">
-      SESIÓN: <span class="tag tag-cyan">@Model.SessionCode</span>
-    </div>
-  </div>
-</div>
+<!-- Hidden metadata for JavaScript session synchronization -->
+<input type="hidden" id="activeSessionId" value="@Model.SessionId" />
 
 <div class="row g-4">
-  <!-- COLUMNA IZQUIERDA: COLA -->
+  <!-- PRIMARY STACK: Track Queue Display -->
   <div class="col-lg-8">
     @if (Model.SessionId == 0)
     {
       <div class="z-panel" style="border-color:var(--cyan); background:rgba(0,183,255,0.05);">
         <div class="panel-body text-center py-5">
           <i class="bi bi-play-circle" style="font-size:3rem; color:var(--cyan); opacity:0.5;"></i>
-          <h2 class="mt-3" style="font-family:var(--font-display); font-weight:900;">NO HAY SESIÓN ACTIVA</h2>
-          <p class="text-dim">Inicia una nueva sesión de pista para comenzar a recibir pilotos.</p>
+          <h2 class="mt-3" style="font-family:var(--font-display); font-weight:900;">NO LIVE SESSION</h2>
+          <p class="text-dim">Initiate a new track session to begin accepting pilots.</p>
           <form asp-controller="Session" asp-action="Start" method="post">
             <button type="submit" class="btn-primary mt-3" style="padding:12px 30px; font-size:1.1rem;">
-              <i class="bi bi-lightning-fill"></i> INICIAR NUEVA SESIÓN
+              <i class="bi bi-lightning-fill"></i> START NEW SESSION
             </button>
           </form>
         </div>
@@ -37,50 +28,51 @@
     {
       <div class="z-panel">
         <div class="panel-title">
-          <i class="bi bi-list-ol"></i> Lista de Turnos
+          <i class="bi bi-list-ol"></i> Track Queue
         </div>
         <div class="panel-body">
-          <!-- Dashboard Stats Grid -->
+          <!-- Real-time Performance Metrics -->
           <div class="row g-3 mb-4">
             <div class="col-6 col-md-3">
               <div class="stat-mini">
                 <div class="stat-mini-val" id="statDone" style="color:var(--green);">0</div>
-                <div class="stat-mini-label">Atendidos</div>
+                <div class="stat-mini-label">Completed</div>
               </div>
             </div>
             <div class="col-6 col-md-3">
               <div class="stat-mini">
                 <div class="stat-mini-val" id="statQueued" style="color:var(--yellow);">0</div>
-                <div class="stat-mini-label">En Cola</div>
+                <div class="stat-mini-label">Queued</div>
               </div>
             </div>
             <div class="col-6 col-md-3">
               <div class="stat-mini">
                 <div class="stat-mini-val" id="statAvgTime" style="color:var(--cyan);">0m</div>
-                <div class="stat-mini-label">T. Promedio</div>
+                <div class="stat-mini-label">Avg. Duration</div>
               </div>
             </div>
             <div class="col-6 col-md-3">
               <div class="stat-mini">
                 <div class="stat-mini-val" id="statTurnRate" style="color:var(--orange);">0/h</div>
-                <div class="stat-mini-label">Frecuencia</div>
+                <div class="stat-mini-label">Turn Rate</div>
               </div>
             </div>
           </div>
 
+          <!-- Dynamic Banner: Alerts operator of incoming pilot readiness -->
           <div id="nextPilotBanner" class="status-log mb-4" style="display:none; border-color:var(--yellow); background:rgba(255,214,0,0.02);">
             <div class="status-log-title" style="color:var(--yellow);">
-              <i class="bi bi-person-up"></i> Próximo en Pista
+              <i class="bi bi-person-up"></i> Upcoming Readiness
             </div>
             <div class="status-log-body" id="nextPilotName" style="font-weight:700; font-size:1rem; color:var(--text);">
-              Cargando...
+              Loading pilot data...
             </div>
           </div>
 
           <div class="queue-list" id="queueList">
             <div class="text-center py-5 text-dim">
               <div class="spinner-border spinner-border-sm mb-2"></div>
-              <p>Sincronizando con la pista...</p>
+              <p>Synchronizing with live track data...</p>
             </div>
           </div>
         </div>
@@ -88,22 +80,22 @@
     }
   </div>
 
-  <!-- COLUMNA DERECHA: ACCIONES Y DETALLE -->
+  <!-- CONTROL STACK: Session & Stint Management -->
   <div class="col-lg-4">
     @if (Model.SessionId > 0)
     {
       <div class="z-panel red-accent">
         <div class="panel-title">
-          <i class="bi bi-lightning-fill"></i> Control de Atención
+          <i class="bi bi-lightning-fill"></i> Stint Control
         </div>
         <div class="panel-body">
           <div id="currentTurnPanel">
             <div class="text-center py-4 text-muted">
-              Sin turno activo
+              No Active Stint
             </div>
           </div>
 
-          <!-- Timer y Progreso -->
+          <!-- Chronometer and Progress Tracking -->
           <div class="mt-4">
             <div id="bigTimer" class="big-timer">--:--</div>
             <div class="progress-bar-wrap mt-2" style="height:6px;">
@@ -114,16 +106,16 @@
           <div style="display:flex;flex-direction:column;margin-top:16px;gap:10px;">
             <div style="display:flex;gap:8px;">
               <button id="btnAdvance" class="btn-primary" style="flex:1;justify-content:center;background:var(--green);border-color:var(--green);color:var(--bg);" onclick="advanceQueue()">
-                <i class="bi bi-check-circle-fill"></i> Finalizar y Siguiente
+                <i class="bi bi-check-circle-fill"></i> Finish & Next
               </button>
             </div>
             <div style="display:flex;gap:8px;">
               <button class="btn-outline" style="flex:1;justify-content:center;" onclick="reannounceCurrent()">
-                <i class="bi bi-megaphone-fill"></i> Llamar de Nuevo
+                <i class="bi bi-megaphone-fill"></i> Re-call Pilot
               </button>
               <a href="/Dashboard/Index" class="btn-outline"
                  style="flex:1;justify-content:center;text-decoration:none;">
-                <i class="bi bi-person-plus"></i> Agregar
+                <i class="bi bi-person-plus"></i> New Entry
               </a>
             </div>
           </div>
@@ -132,32 +124,29 @@
 
       <div class="z-panel mt-4">
         <div class="panel-title">
-          <i class="bi bi-chat-left-dots"></i> Notas Rápidas
+          <i class="bi bi-chat-left-dots"></i> Quick Notes
         </div>
         <div class="panel-body">
-          <textarea id="quickNotes" class="z-field-input" rows="3" placeholder="Añadir comentario al turno actual..."></textarea>
+          <textarea id="quickNotes" class="z-field-input" rows="3" placeholder="Add administrative notes for this stint..."></textarea>
           <button class="btn-outline mt-2 w-100" style="justify-content:center;" onclick="saveComment()">
-            <i class="bi bi-save"></i> Guardar Comentario
+            <i class="bi bi-save"></i> Commit Note
           </button>
         </div>
       </div>
 
-      <!-- BOTÓN TERMINAR SESIÓN -->
+      <!-- ADMINISTRATIVE: Session Finalization -->
       <div class="mt-4">
         <form asp-controller="Session" asp-action="End" method="post">
           <input type="hidden" name="sessionId" value="@Model.SessionId" />
           <button type="submit" class="btn-outline w-100" style="border-color:var(--red); color:var(--red); justify-content:center;"
-                  onclick="return confirm('¿Seguro que deseas finalizar la sesión actual?')">
-            <i class="bi bi-stop-circle me-2"></i> FINALIZAR SESIÓN DE PISTA
+                  onclick="return confirm('Are you sure you want to finalize the current track session? This action is irreversible.')">
+            <i class="bi bi-stop-circle me-2"></i> CLOSE TRACK SESSION
           </button>
         </form>
       </div>
     }
   </div>
 </div>
-
-<!-- Hidden inputs for JS -->
-<input type="hidden" id="activeSessionId" value="@Model.SessionId" />
 
 @section Scripts {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>

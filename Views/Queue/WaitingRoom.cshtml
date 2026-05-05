@@ -1,11 +1,11 @@
 @{ Layout = null; }
 
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>APEX CONTROL — Sala de Espera</title>
+  <title>KEPLER TRACKLINE — Public Waiting Room</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,700;0,900;1,900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -25,7 +25,7 @@
     min-height:100vh; overflow:hidden;
   }
 
-  /* ── FONDO VIDEO ── */
+  /* ── KINETIC BACKGROUND ── */
   .video-bg {
     position:fixed; inset:0; z-index:0; overflow:hidden;
     background:var(--bg);
@@ -41,7 +41,7 @@
 
   .content { position:relative; z-index:1; display:flex; flex-direction:column; height:100vh; }
 
-  /* ── HEADER ── */
+  /* ── HUD HEADER ── */
   .wr-header {
     display:flex; align-items:center; justify-content:space-between;
     padding:16px 32px; border-bottom:1px solid var(--border);
@@ -67,10 +67,10 @@
   }
   @@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
-  /* ── MAIN SPLIT ── */
+  /* ── DUAL COLUMN ARCHITECTURE ── */
   .wr-body { display:flex; flex:1; min-height:0; gap:0; }
 
-  /* ── TURNO ACTUAL ── */
+  /* ── ACTIVE TURN COMPONENT ── */
   .current-panel {
     flex:1; display:flex; flex-direction:column; align-items:center;
     justify-content:center; padding:40px;
@@ -105,7 +105,7 @@
     letter-spacing:0.2em; text-transform:uppercase; text-align:center;
   }
 
-  /* ── COLA LATERAL ── */
+  /* ── QUEUE SIDEBAR ── */
   .queue-panel {
     width:360px; flex-shrink:0; display:flex; flex-direction:column;
     background:var(--bg2);
@@ -138,7 +138,7 @@
   .q-name { font-size:0.95rem; font-weight:700; text-transform:uppercase; }
   .q-id   { font-family:var(--font-mono); font-size:0.65rem; color:var(--text-dim); margin-top:2px; }
 
-  /* ── BOTTOM ── */
+  /* ── HUD FOOTER ── */
   .wr-footer {
     padding:10px 32px; border-top:1px solid var(--border);
     background:rgba(10,10,11,0.8); backdrop-filter:blur(8px);
@@ -147,7 +147,7 @@
     color:var(--text-muted); text-transform:uppercase; flex-shrink:0;
   }
 
-  /* ── ACTIVATE BUTTON (autoplay policy) ── */
+  /* ── AUDIO ACTIVATION INTERSTITIAL ── */
   .activate-overlay {
     position:fixed; inset:0; background:rgba(10,10,11,0.92);
     z-index:9999; display:flex; align-items:center; justify-content:center;
@@ -176,10 +176,11 @@
     <div class="bg-overlay"></div>
   </div>
 
+  <!-- Autoplay Policy Override: Requires user interaction to enable Audio & Speech Synthesis -->
   <div class="activate-overlay" id="activateOverlay">
-    <div class="activate-label">Pantalla de sala de espera</div>
-    <button class="activate-btn" onclick="activateScreen()">Activar Pantalla</button>
-    <div class="activate-label">Toca para habilitar audio y comenzar</div>
+    <div class="activate-label">Trackside Display Uplink</div>
+    <button class="activate-btn" onclick="activateScreen()">Initialize Interface</button>
+    <div class="activate-label">Interactive touch required for audio clearance</div>
   </div>
 
   <div class="content">
@@ -187,66 +188,73 @@
       <div class="wr-brand">KEPLER<span>TRACKLINE</span></div>
       <div class="live-pill">
         <div class="live-dot"></div>
-        En Vivo
+        Live Track Status
       </div>
-      <div class="wr-clock" id="clock">--:--:--</div>
+      <div class="wr-clock" id="clock">00:00:00</div>
     </header>
 
     <main class="wr-body">
       <section class="current-panel">
         <div class="now-label">
           <div class="live-dot"></div>
-          Turno en Atención
+          Active Stint
         </div>
         <div id="currentTurnDisplay" style="width:100%; display:flex; flex-direction:column; align-items:center;">
-          <div class="no-turn">Sin turno activo</div>
+          <div class="no-turn">No Active Participant</div>
         </div>
       </section>
 
       <aside class="queue-panel">
         <div class="queue-panel-title">
-          <i class="bi bi-list-ol"></i> Próximos Turnos
+          <i class="bi bi-list-ol"></i> Upcoming Turns
         </div>
         <div class="queue-scroll" id="upcomingList">
           <div class="no-turn" style="padding:40px 0;">
-            Cola vacía
+            Empty Queue
           </div>
         </div>
       </aside>
     </main>
 
     <footer class="wr-footer">
-      <div>KEPLER / TRACKLINE ALLIANCE</div>
-      <div id="sessionLabel">Buscando sesión...</div>
-      <div>Encrypted · Secure Display</div>
+      <div>KEPLER / TRACKLINE ALLIANCE — V2.0</div>
+      <div id="sessionLabel">Scanning for active session...</div>
+      <div>Telemetry Encrypted · High Security Link</div>
     </footer>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
   <script>
+  /**
+   * Orchestrates the real-time display logic for the public waiting area.
+   * Utilizes SignalR for instant updates and Web Speech API for automated PA announcements.
+   */
   let lastOnTrackId = null;
   let screenActive  = false;
   let connection    = null;
   let sessionId     = 0;
 
-
-  // ── Reloj ──────────────────────────────────────────────────────────────
   function updateClock() {
     const el = document.getElementById('clock');
-    if (el) el.textContent = new Date().toLocaleTimeString('es-CO');
+    if (el) el.textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
   }
   setInterval(updateClock, 1000);
   updateClock();
 
-  // ── Activar pantalla (permite autoplay) ───────────────────────────────
+  /**
+   * Unlocks audio and speech contexts following user interaction.
+   * Required to comply with modern browser security policies for automated media.
+   */
   function activateScreen() {
     screenActive = true;
     document.getElementById('activateOverlay').classList.add('hidden');
-    // Pre-cargar audio
-    const a = new Audio('/sounds/estan-listos.mp3');
-    a.volume = 0; a.play().catch(()=>{});
     
-    // Desbloquear TTS
+    // Warm up audio buffer
+    const a = new Audio('/sounds/estan-listos.mp3');
+    a.volume = 0; 
+    a.play().catch(() => {});
+    
+    // Warm up Speech Synthesis
     const unlock = new SpeechSynthesisUtterance("");
     window.speechSynthesis.speak(unlock);
     
@@ -260,17 +268,16 @@
       .build();
 
     connection.on("QueueUpdated", () => {
-      console.log("Evento QueueUpdated recibido");
+      console.log("Broadcast received: Synchronizing data.");
       loadData();
     });
 
     try {
       await connection.start();
-      console.log("SignalR conectado");
+      console.log("Telemetry uplink established.");
       await loadData();
     } catch (err) {
-      console.error("Error conectando SignalR:", err);
-      // Fallback a polling si falla SignalR
+      console.error("SignalR handshake failed. Polling fallback engaged.", err);
       setInterval(loadData, 5000);
     }
   }
@@ -282,7 +289,7 @@
       const sl = document.getElementById('sessionLabel');
 
       if (!session || !session.id) {
-        if (sl) sl.textContent = 'Sin sesión activa';
+        if (sl) sl.textContent = 'No Active Session';
         renderNoSession();
         sessionId = 0;
         return;
@@ -293,7 +300,7 @@
         await connection.invoke("JoinSession", String(sessionId));
       }
 
-      if (sl) sl.textContent = `Sesión: ${session.sessionCode}`;
+      if (sl) sl.textContent = `Active Session: ${session.sessionCode}`;
 
       const qr = await fetch(`/Queue/GetQueue?sessionId=${session.id}`);
       if (!qr.ok) return;
@@ -302,15 +309,15 @@
       renderCurrent(entries);
       renderUpcoming(entries);
     } catch (e) {
-      console.error('Error actualizando sala de espera:', e);
+      console.error('Data acquisition error:', e);
     }
   }
 
   function renderNoSession() {
     document.getElementById('currentTurnDisplay').innerHTML =
-      '<div class="no-turn">Sin sesión activa</div>';
+      '<div class="no-turn">Station Offline</div>';
     document.getElementById('upcomingList').innerHTML =
-      '<div class="no-turn" style="padding:40px 0;">Cola vacía</div>';
+      '<div class="no-turn" style="padding:40px 0;">Queue Empty</div>';
   }
 
   function renderCurrent(entries) {
@@ -318,16 +325,15 @@
     const el     = document.getElementById('currentTurnDisplay');
 
     if (!active) {
-      el.innerHTML = '<div class="no-turn">Sin turno activo</div>';
+      el.innerHTML = '<div class="no-turn">No Active Stint</div>';
       lastOnTrackId = null;
       return;
     }
 
-    // Si cambió el turno activo o es el primero que detectamos
+    // Trigger alert and voice synthesis only when the active pilot changes.
     if (active.id !== lastOnTrackId) {
-      if (lastOnTrackId !== null) { // Evitar sonar al cargar la página por primera vez si ya hay uno
+      if (lastOnTrackId !== null) { 
         playAlert();
-        // Pequeño delay para que no se pisen el sonido y la voz
         setTimeout(() => {
           announceTTS(active.position, active.participant?.fullName, 10);
         }, 1500);
@@ -346,7 +352,7 @@
     const el       = document.getElementById('upcomingList');
 
     if (!upcoming.length) {
-      el.innerHTML = '<div class="no-turn" style="padding:40px 0;">No hay más turnos</div>';
+      el.innerHTML = '<div class="no-turn" style="padding:40px 0;">No Upcoming Turns</div>';
       return;
     }
 
@@ -361,7 +367,6 @@
       </div>`).join('');
   }
 
-  // ── Audio ──────────────────────────────────────────────────────────────
   function playAlert() {
     if (!screenActive) return;
     try {
@@ -369,24 +374,19 @@
     } catch(e) {}
   }
 
+  /**
+   * Automated PA System: Announces turn updates via high-quality speech synthesis.
+   */
   function announceTTS(position, name, durationMinutes = 10) {
     if (!screenActive || !('speechSynthesis' in window)) return;
     
-    // Cancelar cualquier anuncio previo
     window.speechSynthesis.cancel();
-
-    const text = `Turno número ${position}, piloto ${name || 'desconocido'}. Duración aproximada: ${durationMinutes} minutos.`;
-    console.log("Anunciando TTS:", text);
-
+    const text = `Turn number ${position}, pilot ${name || 'unknown'}. Estimated stint duration: ${durationMinutes} minutes.`;
+    
     const msg = new SpeechSynthesisUtterance(text);
-    msg.lang = 'es-ES';
+    msg.lang = 'en-US';
     msg.rate = 0.9;
     msg.pitch = 1;
-
-    // Intentar forzar una voz en español si está disponible
-    const voices = window.speechSynthesis.getVoices();
-    const esVoice = voices.find(v => v.lang.startsWith('es'));
-    if (esVoice) msg.voice = esVoice;
 
     window.speechSynthesis.speak(msg);
   }

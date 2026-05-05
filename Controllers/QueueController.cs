@@ -9,6 +9,10 @@ using System.Security.Claims;
 
 namespace Kepler_Trackline_Alliance.Controllers;
 
+/// <summary>
+/// Handles all queue-related operations, including real-time status updates,
+/// participant management, and track analytics.
+/// </summary>
 [Authorize]
 public class QueueController : Controller
 {
@@ -23,7 +27,10 @@ public class QueueController : Controller
         _logger  = logger;
     }
 
-    // ── GET /Queue/Index ─────────────────────────────────────────────────
+    /// <summary>
+    /// Renders the main Track Control Dashboard.
+    /// Redirects or handles the state where no session is currently LIVE.
+    /// </summary>
     public async Task<IActionResult> Index()
     {
         try
@@ -34,7 +41,13 @@ public class QueueController : Controller
                 .FirstOrDefaultAsync();
 
             if (session == null)
-                return View(new QueueViewModel { Entries = new(), SessionId = 0, SessionCode = "N/A" });
+            {
+                return View(new QueueViewModel { 
+                    Entries = new(), 
+                    SessionId = 0, 
+                    SessionCode = "N/A" 
+                });
+            }
 
             var entries = await _queue.GetQueueAsync(session.Id);
             return View(new QueueViewModel 
@@ -46,17 +59,21 @@ public class QueueController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al cargar la cola principal");
+            _logger.LogError(ex, "Failed to load the primary Track Control view.");
             return View(new QueueViewModel { Entries = new(), SessionId = 0 });
         }
     }
 
-    // ── GET /Queue/WaitingRoom — Pantalla pública de sala de espera ──────────
+    /// <summary>
+    /// Serves the public-facing Waiting Room view.
+    /// </summary>
     [AllowAnonymous]
     [HttpGet("/Queue/WaitingRoom")]
     public IActionResult WaitingRoom() => View();
 
-    // ── API GET /Queue/GetQueue?sessionId=1 ───────────────────────────────
+    /// <summary>
+    /// Returns the current queue state as JSON for SignalR client synchronization.
+    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetQueue(uint sessionId)
     {
@@ -86,52 +103,52 @@ public class QueueController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al obtener cola para sesión {SessionId}", sessionId);
+            _logger.LogError(ex, "Failed to fetch queue JSON for session {SessionId}", sessionId);
             return Json(new List<object>());
         }
     }
 
-    // ── API GET /Queue/GetStats?sessionId=1 ───────────────────────────────
+    /// <summary>
+    /// Returns the currently active (LIVE) session details.
+    /// Used by registration and waiting room modules to synchronize state.
+    /// </summary>
+    [AllowAnonymous]
     [HttpGet]
-    public async Task<IActionResult> GetStats(uint sessionId)
+    public async Task<IActionResult> GetActiveSession()
     {
         try
         {
-            var entries = await _context.QueueEntries
-                .Where(q => q.SessionId == sessionId)
-                .ToListAsync();
+            var session = await _context.Sessions
+                .Where(s => s.Status == "LIVE")
+                .OrderByDescending(s => s.StartedAt)
+                .Select(s => new { s.Id, s.SessionCode })
+                .FirstOrDefaultAsync();
 
-            return Json(new
-            {
-                pending   = entries.Count(e => e.Status == "QUEUED"),
-                active    = entries.Count(e => e.Status == "ON_TRACK"),
-                upNext    = entries.Count(e => e.Status == "UP_NEXT"),
-                completed = entries.Count(e => e.Status == "COMPLETED"),
-                cancelled = entries.Count(e => e.Status == "CANCELLED")
-            });
+            return Json(session);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al obtener stats para sesión {SessionId}", sessionId);
-            return Json(new { pending = 0, active = 0, upNext = 0, completed = 0, cancelled = 0 });
+            _logger.LogError(ex, "Failed to retrieve the active session.");
+            return Json(null);
         }
     }
 
-    // ── API POST /Queue/Advance ───────────────────────────────────────────
+    /// <summary>
+    /// Processes the advancement of the queue (Finishing current, starting next).
+    /// </summary>
     [HttpPost]
     public async Task<IActionResult> Advance([FromBody] AdvanceRequest req)
     {
         try
         {
             if (req == null)
-                return Json(new { ok = false, error = "Datos inválidos" });
+                return Json(new { ok = false, error = "Invalid request payload." });
 
             var operatorId = uint.TryParse(
                 User.FindFirstValue(ClaimTypes.NameIdentifier), out var oid) ? oid : 1u;
 
             await _queue.AdvanceQueueAsync(req.SessionId, operatorId);
 
-            // Devolver el participante que acaba de pasar a ON_TRACK
             var nowOnTrack = await _context.QueueEntries
                 .Include(q => q.Participant)
                 .FirstOrDefaultAsync(q => q.SessionId == req.SessionId
@@ -150,28 +167,28 @@ public class QueueController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al avanzar cola para sesión {SessionId}", req?.SessionId);
-            return Json(new { ok = false, error = "Error al avanzar la cola" });
+            _logger.LogError(ex, "Advancement process failed for session {SessionId}", req?.SessionId);
+            return Json(new { ok = false, error = "Critical error during queue advancement." });
         }
     }
 
-    // ── API POST /Queue/AddParticipant ────────────────────────────────────
-    // sessionId == 0  → solo crear/encontrar el participante, sin asignar a cola
-    // sessionId  > 0  → crear/encontrar participante Y asignarlo a la cola
+    /// <summary>
+    /// Adds a participant to the database and optionally assigns them to an active queue.
+    /// Centralizes participant lookup/creation to ensure data integrity.
+    /// </summary>
     [HttpPost]
     public async Task<IActionResult> AddParticipant([FromBody] AddParticipantRequest req)
     {
         try
         {
             if (req == null)
-                return Json(new { ok = false, error = "Datos inválidos" });
+                return Json(new { ok = false, error = "Invalid request payload." });
 
             if (string.IsNullOrWhiteSpace(req.FullName) || string.IsNullOrWhiteSpace(req.GridId))
-                return Json(new { ok = false, error = "FullName y GridId son requeridos" });
+                return Json(new { ok = false, error = "Full Name and Grid ID are mandatory." });
 
             var operatorId = uint.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var oid) ? oid : 1u;
 
-            // Buscar o crear participante
             var participant = await _context.Participants
                 .FirstOrDefaultAsync(p => p.GridId == req.GridId);
 
@@ -188,30 +205,31 @@ public class QueueController : Controller
                 await _context.SaveChangesAsync();
             }
 
-            // Si no hay sesión activa, solo devolver el participante creado
             if (req.SessionId == 0)
                 return Json(new { ok = true, participantId = participant.Id, assignedToQueue = false });
 
-            // Verificar que no esté ya en la cola activa
             var alreadyIn = await _context.QueueEntries.AnyAsync(q =>
                 q.SessionId     == req.SessionId &&
                 q.ParticipantId == participant.Id &&
                 q.Status != "COMPLETED" && q.Status != "CANCELLED");
 
             if (alreadyIn)
-                return Json(new { ok = false, error = "Participante ya está en cola activa" });
+                return Json(new { ok = false, error = "Participant is already active in this queue." });
 
             await _queue.AddAsync(req.SessionId, participant, operatorId);
             return Json(new { ok = true, participantId = participant.Id, assignedToQueue = true });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al agregar participante a sesión {SessionId}", req?.SessionId);
-            return Json(new { ok = false, error = "Error interno al agregar el participante" });
+            _logger.LogError(ex, "Onboarding failure for session {SessionId}", req?.SessionId);
+            return Json(new { ok = false, error = "Internal server error during participant registration." });
         }
     }
 
-    // ── API GET /Queue/SearchParticipants ─────────────────────────────────
+    /// <summary>
+    /// Performs an asynchronous search for participants by name or ID.
+    /// Used for auto-complete functionality in the registry.
+    /// </summary>
     [HttpGet]
     public async Task<IActionResult> SearchParticipants(string q)
     {
@@ -234,41 +252,21 @@ public class QueueController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al buscar participantes '{Q}'", q);
+            _logger.LogError(ex, "Search query failed for string: '{Q}'", q);
             return Json(new List<object>());
         }
     }
 
-    // ── API GET /Queue/GetAllParticipants ─────────────────────────────────
-    [HttpGet]
-    public async Task<IActionResult> GetAllParticipants()
-    {
-        try
-        {
-            var list = await _context.Participants
-                .OrderBy(p => p.FullName)
-                .ToListAsync();
-            return Json(list.Select(p => new
-            {
-                id = p.Id, fullName = p.FullName, gridId = p.GridId,
-                grade = p.Grade, seasonPoints = p.SeasonPoints
-            }));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error al obtener todos los participantes");
-            return Json(new List<object>());
-        }
-    }
-
-    // ── API POST /Queue/Cancel ────────────────────────────────────────────
+    /// <summary>
+    /// Cancels an active queue entry and logs the administrative action.
+    /// </summary>
     [HttpPost]
     public async Task<IActionResult> Cancel([FromBody] CancelRequest req)
     {
         try
         {
             if (req == null)
-                return Json(new { ok = false, error = "Datos inválidos" });
+                return Json(new { ok = false, error = "Invalid request payload." });
 
             var operatorId = uint.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var oid) ? (uint?)oid : null;
             await _queue.CancelEntryAsync(req.EntryId, operatorId);
@@ -276,33 +274,15 @@ public class QueueController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al cancelar entrada {EntryId}", req?.EntryId);
-            return Json(new { ok = false, error = "Error al cancelar la entrada" });
+            _logger.LogError(ex, "Cancellation failed for entry {EntryId}", req?.EntryId);
+            return Json(new { ok = false, error = "Failed to cancel the specified entry." });
         }
     }
 
-    // ── API GET /Queue/GetLog?sessionId=1 ─────────────────────────────────
-    [HttpGet]
-    public async Task<IActionResult> GetLog(uint sessionId)
-    {
-        try
-        {
-            var logs = await _context.SessionLogs
-                .Where(l => l.SessionId == sessionId)
-                .OrderByDescending(l => l.CreatedAt)
-                .Take(50)
-                .Select(l => new { l.ActionType, l.Notes, l.CreatedAt })
-                .ToListAsync();
-            return Json(logs);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error al obtener log para sesión {SessionId}", sessionId);
-            return Json(new List<object>());
-        }
-    }
-
-    // ── API GET /Queue/GetAdvancedStats?sessionId=1 ──────────────────────
+    /// <summary>
+    /// Calculates high-level session analytics, including throughput and average stint duration.
+    /// Useful for operational performance monitoring.
+    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetAdvancedStats(uint sessionId)
     {
@@ -318,7 +298,6 @@ public class QueueController : Controller
                 avgMinutes = completedEntries.Average(e => (e.CompletedAt!.Value - e.StartedAt!.Value).TotalMinutes);
             }
 
-            // Rendimiento por asesor (agrupado por el operador del log de ENTRY_COMPLETED)
             var advisorStats = await _context.SessionLogs
                 .Where(l => l.SessionId == sessionId && l.ActionType == "ENTRY_COMPLETED" && l.OperatorId != null)
                 .GroupBy(l => l.OperatorId)
@@ -329,13 +308,11 @@ public class QueueController : Controller
                 })
                 .ToListAsync();
 
-            // Enriquecer con nombres de operadores
             var operatorIds = advisorStats.Select(s => s.operatorId).ToList();
             var operators = await _context.Operators
                 .Where(o => operatorIds.Contains(o.Id))
                 .ToDictionaryAsync(o => o.Id, o => o.FullName);
 
-            // Tasa de turnos (turnos por hora)
             double turnRate = 0;
             if (completedEntries.Count > 1)
             {
@@ -359,7 +336,7 @@ public class QueueController : Controller
                 avgTimeMinutes = Math.Round(avgMinutes, 1),
                 turnRate       = turnRate,
                 totalQueued    = totalQueued,
-                nextPilotName  = nextPilot ?? "Nadie",
+                nextPilotName  = nextPilot ?? "None",
                 byAdvisor      = advisorStats.Select(s => new
                 {
                     name  = operators.ContainsKey(s.operatorId!.Value) ? operators[s.operatorId!.Value] : $"Op #{s.operatorId}",
@@ -369,51 +346,26 @@ public class QueueController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al obtener estadísticas avanzadas para sesión {SessionId}", sessionId);
+            _logger.LogError(ex, "Analytics calculation failed for session {SessionId}", sessionId);
             return Json(new { avgTimeMinutes = 0, byAdvisor = new List<object>(), turnRate = 0, totalQueued = 0 });
         }
     }
 
-    // ── API GET /Queue/GetActiveSession ───────────────────────────────────
-    [HttpGet]
-    public async Task<IActionResult> GetActiveSession()
-    {
-        try
-        {
-            var session = await _context.Sessions
-                .Where(s => s.Status == "LIVE")
-                .OrderByDescending(s => s.StartedAt)
-                .FirstOrDefaultAsync();
-
-            if (session == null) return Json(null);
-
-            return Json(new
-            {
-                id          = session.Id,
-                sessionCode = session.SessionCode,
-                status      = session.Status,
-                startedAt   = session.StartedAt
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error al obtener sesión activa");
-            return Json(null);
-        }
-    }
-
-    // ── API POST /Queue/AddComment ────────────────────────────────────────────
+    /// <summary>
+    /// Attaches an administrative comment to a session log.
+    /// Used for internal reporting and audit compliance.
+    /// </summary>
     [HttpPost]
     public async Task<IActionResult> AddComment([FromBody] CommentRequest req)
     {
         try
         {
             if (req == null || string.IsNullOrWhiteSpace(req.Comment))
-                return Json(new { ok = false, error = "Comentario vacío" });
+                return Json(new { ok = false, error = "Comment cannot be empty." });
 
             var entry = await _context.QueueEntries.FindAsync(req.EntryId);
             if (entry == null)
-                return Json(new { ok = false, error = "Turno no encontrado" });
+                return Json(new { ok = false, error = "Session entry not found." });
 
             var operatorId = uint.TryParse(
                 User.FindFirstValue(ClaimTypes.NameIdentifier), out var oid)
@@ -423,7 +375,7 @@ public class QueueController : Controller
             {
                 SessionId  = entry.SessionId,
                 OperatorId = operatorId,
-                ActionType = "COMMENT",
+                ActionType = "ADVISOR_COMMENT",
                 Notes      = req.Comment.Trim()
             });
             await _context.SaveChangesAsync();
@@ -432,11 +384,11 @@ public class QueueController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al guardar comentario para entrada {EntryId}", req?.EntryId);
-            return Json(new { ok = false, error = "Error al guardar comentario" });
+            _logger.LogError(ex, "Failed to persist comment for entry {EntryId}", req?.EntryId);
+            return Json(new { ok = false, error = "Database write failure during comment save." });
         }
     }
-    // ── API POST /Queue/Promote ──────────────────────────────────────────
+
     [HttpPost]
     public async Task<IActionResult> Promote([FromBody] PromoteRequest req)
     {
@@ -448,7 +400,7 @@ public class QueueController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al promover entrada {EntryId}", req?.EntryId);
+            _logger.LogError(ex, "Priority elevation failed for entry {EntryId}", req?.EntryId);
             return Json(new { ok = false });
         }
     }

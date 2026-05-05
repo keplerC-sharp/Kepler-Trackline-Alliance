@@ -3,6 +3,10 @@ using System.Net.Mail;
 
 namespace Kepler_Trackline_Alliance.Services;
 
+/// <summary>
+/// Infrastructure service for automated email communication.
+/// Handles external SMTP handshake and provides fault-tolerant dispatch.
+/// </summary>
 public class EmailService
 {
     private readonly IConfiguration _config;
@@ -14,6 +18,10 @@ public class EmailService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Asynchronously dispatches an email message.
+    /// Gracefully degrades if SMTP configuration is missing to ensure system uptime.
+    /// </summary>
     public async Task SendEmailAsync(string to, string subject, string body)
     {
         try
@@ -23,10 +31,10 @@ public class EmailService
             var user = _config["SMTP:User"];
             var pass = _config["SMTP:Pass"];
 
-            // Si no hay configuración SMTP, simplemente se omite
+            // Verify infrastructure readiness before attempting handshake.
             if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(user))
             {
-                _logger.LogWarning("SMTP no configurado. Se omite el envío de email a {To}", to);
+                _logger.LogWarning("SMTP Infrastructure not configured. Skipping email dispatch to {To}.", to);
                 return;
             }
 
@@ -41,11 +49,13 @@ public class EmailService
 
             var mail = new MailMessage(user!, to, subject, body);
             await smtp.SendMailAsync(mail);
+            
+            _logger.LogInformation("Email successfully dispatched to {To}.", to);
         }
         catch (Exception ex)
         {
-            // El email nunca debe tirar la app
-            _logger.LogError(ex, "Error al enviar email a {To} con asunto '{Subject}'", to, subject);
+            // Fail-safe: Email dispatch errors should never interrupt primary application flow.
+            _logger.LogError(ex, "Mailing failure to {To} with subject '{Subject}'.", to, subject);
         }
     }
 }
