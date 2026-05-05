@@ -83,7 +83,7 @@ public class QueueService
             {
                 SessionId  = sessionId,
                 OperatorId = operatorId,
-                ActionType = "ENTRY_ADDED",
+                ActionType = "ADDED",
                 Notes      = $"Participante {participant.GridId} agregado a posición {position}"
             });
             await _context.SaveChangesAsync();
@@ -138,7 +138,7 @@ public class QueueService
                 {
                     SessionId  = sessionId,
                     OperatorId = operatorId,
-                    ActionType = "ENTRY_COMPLETED",
+                    ActionType = "FINISHED",
                     Notes      = $"Participante {onTrack.ParticipantId} completó su turno"
                 });
             }
@@ -155,7 +155,7 @@ public class QueueService
                 {
                     SessionId  = sessionId,
                     OperatorId = operatorId,
-                    ActionType = "ENTRY_ON_TRACK",
+                    ActionType = "ON_TRACK",
                     Notes      = $"Participante {upNext.ParticipantId} pasó a ON_TRACK"
                 });
             }
@@ -176,7 +176,7 @@ public class QueueService
                     {
                         SessionId  = sessionId,
                         OperatorId = operatorId,
-                        ActionType = "ENTRY_ON_TRACK",
+                        ActionType = "ON_TRACK",
                         Notes      = $"Participante {next.ParticipantId} pasó a ON_TRACK"
                     });
                 }
@@ -196,7 +196,7 @@ public class QueueService
                 {
                     SessionId  = sessionId,
                     OperatorId = operatorId,
-                    ActionType = "ENTRY_PROMOTED",
+                    ActionType = "PROMOTED",
                     Notes      = $"Participante {nextQueued.ParticipantId} promovido a UP_NEXT"
                 });
             }
@@ -223,7 +223,7 @@ public class QueueService
             {
                 SessionId  = entry.SessionId,
                 OperatorId = operatorId,
-                ActionType = "ENTRY_CANCELLED",
+                ActionType = "CANCELLED",
                 Notes      = $"Entrada #{entryId} cancelada"
             });
             await _context.SaveChangesAsync();

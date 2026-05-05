@@ -82,7 +82,7 @@ function renderSidebar(activePage, opName) {
     const pages = [
       { id: 'registry',    icon: 'bi-person-lines-fill', label: 'Driver Registry',  href: '/Dashboard/Index'   },
       { id: 'cola',        icon: 'bi-clock-history',     label: 'Cola de Turnos',   href: '/Queue/Index'       },
-      { id: 'waitingroom', icon: 'bi-display',           label: 'Sala de Espera',   href: '/Queue/WaitingRoom' },
+      { id: 'waitingroom', icon: 'bi-display',           label: 'Sala de Espera',   href: '/Queue/WaitingRoom', target: '_blank' },
       { id: 'tiquetes',    icon: 'bi-ticket-perforated', label: 'Tiquetes',         href: '/Dashboard/Tickets' },
       { id: 'operators',   icon: 'bi-person-plus',       label: 'Crear Operador',   href: '/Auth/Register'     },
     ];
@@ -98,7 +98,7 @@ function renderSidebar(activePage, opName) {
     </div>
     <nav class="sidebar-nav">
       ${pages.map(p => `
-        <a class="nav-item ${activePage === p.id ? 'active' : ''}" href="${p.href}">
+        <a class="nav-item ${activePage === p.id ? 'active' : ''}" href="${p.href}" ${p.target ? `target="${p.target}"` : ''}>
           <i class="bi ${p.icon}"></i>${p.label}
         </a>`).join('')}
     </nav>

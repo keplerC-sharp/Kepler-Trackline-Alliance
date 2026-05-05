@@ -423,7 +423,7 @@ public class QueueController : Controller
             {
                 SessionId  = entry.SessionId,
                 OperatorId = operatorId,
-                ActionType = "ADVISOR_COMMENT",
+                ActionType = "COMMENT",
                 Notes      = req.Comment.Trim()
             });
             await _context.SaveChangesAsync();
