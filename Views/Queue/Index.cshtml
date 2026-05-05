@@ -103,8 +103,14 @@
               </div>
               <div class="col-4">
                 <div class="stat-mini">
-                  <div class="stat-mini-val" id="statDone" style="color:var(--text-muted);">0</div>
-                  <div class="stat-mini-label">Completados</div>
+                  <div class="stat-mini-val" id="statDone" style="color:var(--text-dim);">0</div>
+                  <div class="stat-mini-label">Atendidos</div>
+                </div>
+              </div>
+              <div class="col-4" id="statAvgContainer">
+                <div class="stat-mini">
+                  <div class="stat-mini-val" id="statAvgTime" style="color:var(--cyan);">0m</div>
+                  <div class="stat-mini-label">T. Promedio</div>
                 </div>
               </div>
             </div>
@@ -182,6 +188,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
 <script src="~/js/shared.js"></script>
 <script src="~/js/cola.js"></script>
 </body>

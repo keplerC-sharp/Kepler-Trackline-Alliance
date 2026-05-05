@@ -1,4 +1,5 @@
 using Kepler_Trackline_Alliance.Data;
+using Kepler_Trackline_Alliance.Hubs;
 using Kepler_Trackline_Alliance.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +29,9 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 
 builder.Services.AddAuthorization();
 
+// ── SignalR ──────────────────────────────────────────────────────────────
+builder.Services.AddSignalR();
+
 // ── Services ─────────────────────────────────────────────────────────────
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<QueueService>();
@@ -52,7 +56,6 @@ app.UseExceptionHandler(errorApp =>
         var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
         logger.LogError("Excepción no controlada en la petición {Path}", context.Request.Path);
 
-        // Si es una petición AJAX/API, devolver JSON
         if (context.Request.Headers["X-Requested-With"] == "XMLHttpRequest" ||
             context.Request.Path.StartsWithSegments("/Queue") ||
             context.Request.Path.StartsWithSegments("/Session"))
@@ -85,5 +88,7 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}")
     .WithStaticAssets();
+
+app.MapHub<QueueHub>("/queueHub");
 
 app.Run();

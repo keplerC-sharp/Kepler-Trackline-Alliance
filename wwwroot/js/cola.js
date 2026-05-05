@@ -14,14 +14,35 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (sid) sessionId = parseInt(sid.value) || 0;
 
   if (sessionId > 0) {
-    await loadQueue();
-    await loadStats();
-    queueTimer = setInterval(async () => {
-      await loadQueue();
-      await loadStats();
-    }, 5000);
+    initSignalR();
+    loadAdvancedStats();
   }
 });
+
+let connection = null;
+
+async function initSignalR() {
+  connection = new signalR.HubConnectionBuilder()
+    .withUrl("/queueHub")
+    .withAutomaticReconnect()
+    .build();
+
+  connection.on("QueueUpdated", async () => {
+    console.log("Cola actualizada vía SignalR");
+    await loadQueue();
+    await loadAdvancedStats();
+  });
+
+  try {
+    await connection.start();
+    console.log("SignalR conectado en Dashboard");
+    await connection.invoke("JoinSession", String(sessionId));
+    await loadQueue();
+  } catch (err) {
+    console.error("Error SignalR Dashboard:", err);
+    setInterval(loadQueue, 5000);
+  }
+}
 
 // ── Cola ──────────────────────────────────────────────────────────────────
 async function loadQueue() {
@@ -41,14 +62,23 @@ async function loadQueue() {
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────
-async function loadStats() {
+async function loadAdvancedStats() {
   if (!sessionId) return;
   try {
-    const res = await fetch(`/Queue/GetStats?sessionId=${sessionId}`);
+    const res = await fetch(`/Queue/GetAdvancedStats?sessionId=${sessionId}`);
     if (!res.ok) return;
     const data = await res.json();
-    const el = document.getElementById('statDone');
-    if (el) el.textContent = data.completed ?? 0;
+    
+    // Actualizar contador completados (del método anterior)
+    const elDone = document.getElementById('statDone');
+    if (elDone) {
+      const total = data.byAdvisor.reduce((acc, curr) => acc + curr.count, 0);
+      elDone.textContent = total;
+    }
+
+    // Mostrar tiempo promedio si existe un contenedor
+    const elAvg = document.getElementById('statAvgTime');
+    if (elAvg) elAvg.textContent = data.avgTimeMinutes + 'm';
   } catch { /* silencioso */ }
 }
 
@@ -99,9 +129,15 @@ function renderQueueList(entries) {
           </div>
         </div>
         ${!isOn ? `
-          <button class="btn-icon" onclick="cancelEntry(${q.id})" title="Cancelar turno">
-            <i class="bi bi-x-circle" style="color:var(--red);"></i>
-          </button>` : ''}
+          <div style="display:flex;gap:4px;">
+            ${!isNext && q.participant?.grade !== 'S' ? `
+              <button class="btn-icon" onclick="prioritizeEntry(${q.id})" title="Priorizar">
+                <i class="bi bi-arrow-up-circle" style="color:var(--cyan);"></i>
+              </button>` : ''}
+            <button class="btn-icon" onclick="cancelEntry(${q.id})" title="Cancelar turno">
+              <i class="bi bi-x-circle" style="color:var(--red);"></i>
+            </button>
+          </div>` : ''}
       </div>`;
   }).join('');
 }
@@ -269,6 +305,26 @@ function reannounceCurrent() {
     announceParticipant(position, name, 10);
     showToast('Llamando de nuevo...', 'info');
   }, 1000);
+}
+
+async function prioritizeEntry(entryId) {
+  try {
+    const res = await fetch('/Queue/Promote', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ entryId })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.ok) {
+      showToast('Turno priorizado', 'success');
+      // No hace falta recargar manualmente si SignalR está activo, 
+      // pero por si acaso lo hacemos para feedback instantáneo
+      await loadQueue();
+    }
+  } catch {
+    showToast('Error al priorizar', 'error');
+  }
 }
 
 // ── Cancelar entrada ──────────────────────────────────────────────────────

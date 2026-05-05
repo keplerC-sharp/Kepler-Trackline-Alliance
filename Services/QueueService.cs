@@ -2,6 +2,7 @@ using Kepler_Trackline_Alliance.Data;
 using Kepler_Trackline_Alliance.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.SignalR;
 
 namespace Kepler_Trackline_Alliance.Services;
 
@@ -9,11 +10,21 @@ public class QueueService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<QueueService> _logger;
+    private readonly Microsoft.AspNetCore.SignalR.IHubContext<Hubs.QueueHub> _hubContext;
 
-    public QueueService(AppDbContext context, ILogger<QueueService> logger)
+    public QueueService(
+        AppDbContext context, 
+        ILogger<QueueService> logger,
+        Microsoft.AspNetCore.SignalR.IHubContext<Hubs.QueueHub> hubContext)
     {
-        _context = context;
-        _logger  = logger;
+        _context    = context;
+        _logger     = logger;
+        _hubContext = hubContext;
+    }
+
+    private async Task NotifyUpdateAsync(uint sessionId)
+    {
+        await _hubContext.Clients.Group($"Session_{sessionId}").SendAsync("QueueUpdated");
     }
 
     // ── Agregar participante a la cola ────────────────────────────────────
@@ -76,12 +87,13 @@ public class QueueService
                 Notes      = $"Participante {participant.GridId} agregado a posición {position}"
             });
             await _context.SaveChangesAsync();
+            await NotifyUpdateAsync(sessionId);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al agregar participante {ParticipantId} a sesión {SessionId}",
                 participant.Id, sessionId);
-            throw; // Re-lanzar para que el controller lo maneje
+            throw;
         }
     }
 
@@ -190,11 +202,47 @@ public class QueueService
             }
 
             await _context.SaveChangesAsync();
+            await NotifyUpdateAsync(sessionId);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error al avanzar cola para sesión {SessionId}", sessionId);
             throw;
         }
+    }
+
+    public async Task CancelEntryAsync(uint entryId, uint? operatorId)
+    {
+        try
+        {
+            var entry = await _context.QueueEntries.FindAsync(entryId);
+            if (entry == null) return;
+
+            entry.Status = "CANCELLED";
+            _context.SessionLogs.Add(new SessionLog
+            {
+                SessionId  = entry.SessionId,
+                OperatorId = operatorId,
+                ActionType = "ENTRY_CANCELLED",
+                Notes      = $"Entrada #{entryId} cancelada"
+            });
+            await _context.SaveChangesAsync();
+            await NotifyUpdateAsync(entry.SessionId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al cancelar entrada {EntryId}", entryId);
+            throw;
+        }
+    }
+
+    public async Task PromoteEntryAsync(uint entryId)
+    {
+        var entry = await _context.QueueEntries.FindAsync(entryId);
+        if (entry == null) return;
+
+        entry.Priority = "HIGH";
+        await _context.SaveChangesAsync();
+        await NotifyUpdateAsync(entry.SessionId);
     }
 }

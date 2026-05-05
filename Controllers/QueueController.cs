@@ -265,23 +265,8 @@ public class QueueController : Controller
             if (req == null)
                 return Json(new { ok = false, error = "Datos inválidos" });
 
-            var entry = await _context.QueueEntries.FindAsync(req.EntryId);
-            if (entry == null)
-                return Json(new { ok = false, error = "Entrada no encontrada" });
-
-            entry.Status = "CANCELLED";
-            await _context.SaveChangesAsync();
-
-            var log = new SessionLog
-            {
-                SessionId  = entry.SessionId,
-                OperatorId = uint.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var oid) ? oid : null,
-                ActionType = "ENTRY_CANCELLED",
-                Notes      = $"Entrada #{entry.Id} cancelada"
-            };
-            _context.SessionLogs.Add(log);
-            await _context.SaveChangesAsync();
-
+            var operatorId = uint.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var oid) ? (uint?)oid : null;
+            await _queue.CancelEntryAsync(req.EntryId, operatorId);
             return Json(new { ok = true });
         }
         catch (Exception ex)
@@ -309,6 +294,56 @@ public class QueueController : Controller
         {
             _logger.LogError(ex, "Error al obtener log para sesión {SessionId}", sessionId);
             return Json(new List<object>());
+        }
+    }
+
+    // ── API GET /Queue/GetAdvancedStats?sessionId=1 ──────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetAdvancedStats(uint sessionId)
+    {
+        try
+        {
+            var completedEntries = await _context.QueueEntries
+                .Where(q => q.SessionId == sessionId && q.Status == "COMPLETED" && q.StartedAt != null && q.CompletedAt != null)
+                .ToListAsync();
+
+            double avgMinutes = 0;
+            if (completedEntries.Any())
+            {
+                avgMinutes = completedEntries.Average(e => (e.CompletedAt!.Value - e.StartedAt!.Value).TotalMinutes);
+            }
+
+            // Rendimiento por asesor (agrupado por el operador del log de ENTRY_COMPLETED)
+            var advisorStats = await _context.SessionLogs
+                .Where(l => l.SessionId == sessionId && l.ActionType == "ENTRY_COMPLETED" && l.OperatorId != null)
+                .GroupBy(l => l.OperatorId)
+                .Select(g => new
+                {
+                    operatorId = g.Key,
+                    count      = g.Count()
+                })
+                .ToListAsync();
+
+            // Enriquecer con nombres de operadores
+            var operatorIds = advisorStats.Select(s => s.operatorId).ToList();
+            var operators = await _context.Operators
+                .Where(o => operatorIds.Contains(o.Id))
+                .ToDictionaryAsync(o => o.Id, o => o.FullName);
+
+            return Json(new
+            {
+                avgTimeMinutes = Math.Round(avgMinutes, 1),
+                byAdvisor      = advisorStats.Select(s => new
+                {
+                    name  = operators.ContainsKey(s.operatorId!.Value) ? operators[s.operatorId!.Value] : $"Op #{s.operatorId}",
+                    count = s.count
+                })
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener estadísticas avanzadas para sesión {SessionId}", sessionId);
+            return Json(new { avgTimeMinutes = 0, byAdvisor = new List<object>() });
         }
     }
 
@@ -374,10 +409,27 @@ public class QueueController : Controller
             return Json(new { ok = false, error = "Error al guardar comentario" });
         }
     }
+    // ── API POST /Queue/Promote ──────────────────────────────────────────
+    [HttpPost]
+    public async Task<IActionResult> Promote([FromBody] PromoteRequest req)
+    {
+        try
+        {
+            if (req == null) return Json(new { ok = false });
+            await _queue.PromoteEntryAsync(req.EntryId);
+            return Json(new { ok = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al promover entrada {EntryId}", req?.EntryId);
+            return Json(new { ok = false });
+        }
+    }
 }
 
 public record AdvanceRequest(uint SessionId);
 public record CancelRequest(uint EntryId);
+public record PromoteRequest(uint EntryId);
 public record AddParticipantRequest(
     uint    SessionId,
     string  FullName,

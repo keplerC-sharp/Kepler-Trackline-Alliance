@@ -222,10 +222,13 @@
     </footer>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
   <script>
   let lastOnTrackId = null;
   let screenActive  = false;
-  let pollInterval  = null;
+  let connection    = null;
+  let sessionId     = 0;
+
 
   // ── Reloj ──────────────────────────────────────────────────────────────
   function updateClock() {
@@ -242,18 +245,38 @@
     // Pre-cargar audio
     const a = new Audio('/sounds/estan-listos.mp3');
     a.volume = 0; a.play().catch(()=>{});
-    startPolling();
+    
+    // Desbloquear TTS
+    const unlock = new SpeechSynthesisUtterance("");
+    window.speechSynthesis.speak(unlock);
+    
+    initSignalR();
   }
 
-  // ── Polling ────────────────────────────────────────────────────────────
-  function startPolling() {
-    loadData();
-    pollInterval = setInterval(loadData, 3000);
+  async function initSignalR() {
+    connection = new signalR.HubConnectionBuilder()
+      .withUrl("/queueHub")
+      .withAutomaticReconnect()
+      .build();
+
+    connection.on("QueueUpdated", () => {
+      console.log("Evento QueueUpdated recibido");
+      loadData();
+    });
+
+    try {
+      await connection.start();
+      console.log("SignalR conectado");
+      await loadData();
+    } catch (err) {
+      console.error("Error conectando SignalR:", err);
+      // Fallback a polling si falla SignalR
+      setInterval(loadData, 5000);
+    }
   }
 
   async function loadData() {
     try {
-      // Buscar sesión activa
       const sr = await fetch('/Queue/GetActiveSession');
       const session = sr.ok ? await sr.json() : null;
       const sl = document.getElementById('sessionLabel');
@@ -261,11 +284,17 @@
       if (!session || !session.id) {
         if (sl) sl.textContent = 'Sin sesión activa';
         renderNoSession();
+        sessionId = 0;
         return;
       }
+      
+      if (sessionId !== session.id) {
+        sessionId = session.id;
+        await connection.invoke("JoinSession", String(sessionId));
+      }
+
       if (sl) sl.textContent = `Sesión: ${session.sessionCode}`;
 
-      // Obtener cola
       const qr = await fetch(`/Queue/GetQueue?sessionId=${session.id}`);
       if (!qr.ok) return;
       const entries = await qr.json();
