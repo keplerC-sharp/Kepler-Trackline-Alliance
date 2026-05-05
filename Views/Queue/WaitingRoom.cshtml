@@ -25,12 +25,18 @@
     min-height:100vh; overflow:hidden;
   }
 
-  /* ── FONDO ── */
-  .bg-glow {
-    position:fixed; inset:0; pointer-events:none; z-index:0;
-    background:
-      radial-gradient(ellipse 60% 40% at 50% 0%, rgba(232,25,10,0.08) 0%, transparent 70%),
-      radial-gradient(ellipse 40% 30% at 80% 100%, rgba(0,229,255,0.05) 0%, transparent 60%);
+  /* ── FONDO VIDEO ── */
+  .video-bg {
+    position:fixed; inset:0; z-index:0; overflow:hidden;
+    background:var(--bg);
+  }
+  .video-bg video {
+    width:100%; height:100%; object-fit:cover;
+    opacity:0.3; filter:grayscale(0.8) contrast(1.2);
+  }
+  .bg-overlay {
+    position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(10,10,11,0.9) 0%, rgba(10,10,11,0.4) 50%, rgba(10,10,11,0.9) 100%);
   }
 
   .content { position:relative; z-index:1; display:flex; flex-direction:column; height:100vh; }
@@ -163,7 +169,12 @@
 </head>
 <body>
 
-  <div class="bg-glow"></div>
+  <div class="video-bg">
+    <video autoplay muted loop playsinline>
+      <source src="/video/A_high_tech_motorsport_HUD_sty.mp4" type="video/mp4">
+    </video>
+    <div class="bg-overlay"></div>
+  </div>
 
   <div class="activate-overlay" id="activateOverlay">
     <div class="activate-label">Pantalla de sala de espera</div>
@@ -283,12 +294,17 @@
       return;
     }
 
-    // Si cambió el turno activo → reproducir sonido
-    if (active.id !== lastOnTrackId && lastOnTrackId !== null) {
-      playAlert();
-      announceTTS(active.participant?.fullName, active.participant?.gridId);
+    // Si cambió el turno activo o es el primero que detectamos
+    if (active.id !== lastOnTrackId) {
+      if (lastOnTrackId !== null) { // Evitar sonar al cargar la página por primera vez si ya hay uno
+        playAlert();
+        // Pequeño delay para que no se pisen el sonido y la voz
+        setTimeout(() => {
+          announceTTS(active.position, active.participant?.fullName, 10);
+        }, 1500);
+      }
+      lastOnTrackId = active.id;
     }
-    lastOnTrackId = active.id;
 
     el.innerHTML = `
       <div class="turn-number">${String(active.position).padStart(2,'0')}</div>
@@ -324,13 +340,25 @@
     } catch(e) {}
   }
 
-  function announceTTS(name, gridId) {
+  function announceTTS(position, name, durationMinutes = 10) {
     if (!screenActive || !('speechSynthesis' in window)) return;
+    
+    // Cancelar cualquier anuncio previo
     window.speechSynthesis.cancel();
-    const msg = new SpeechSynthesisUtterance(
-      `Turno para ${name || 'participante'}, código ${gridId || ''}, por favor pasar a la pista`
-    );
-    msg.lang = 'es-ES'; msg.rate = 0.85;
+
+    const text = `Turno número ${position}, piloto ${name || 'desconocido'}. Duración aproximada: ${durationMinutes} minutos.`;
+    console.log("Anunciando TTS:", text);
+
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.lang = 'es-ES';
+    msg.rate = 0.9;
+    msg.pitch = 1;
+
+    // Intentar forzar una voz en español si está disponible
+    const voices = window.speechSynthesis.getVoices();
+    const esVoice = voices.find(v => v.lang.startsWith('es'));
+    if (esVoice) msg.voice = esVoice;
+
     window.speechSynthesis.speak(msg);
   }
 

@@ -115,19 +115,26 @@ public class AuthController : Controller
 
         try
         {
-            if (await _context.Operators.AnyAsync(o => o.Identifier == model.Identifier))
+            var identifier = model.Identifier?.Trim();
+            if (string.IsNullOrWhiteSpace(identifier))
+            {
+                ModelState.AddModelError("Identifier", "El identificador es requerido");
+                return View(model);
+            }
+
+            if (await _context.Operators.AnyAsync(o => o.Identifier.ToLower() == identifier.ToLower()))
             {
                 ModelState.AddModelError("Identifier", "Ese Identifier ya está en uso");
                 return View(model);
             }
 
             var hashedPassword = BCrypt.Net.BCrypt.HashPassword(model.Password);
-            _logger.LogInformation("Registrando nuevo operador: {Identifier}. Hash generado: {Hash}", model.Identifier, hashedPassword);
+            _logger.LogInformation("Registrando nuevo operador: {Identifier}. Hash generado: {Hash}", identifier, hashedPassword);
 
             var user = new Operator
             {
-                Identifier   = model.Identifier,
-                FullName     = model.FullName,
+                Identifier   = identifier,
+                FullName     = model.FullName?.Trim() ?? "",
                 PasswordHash = hashedPassword,
                 Role         = "OPERATOR"
             };
