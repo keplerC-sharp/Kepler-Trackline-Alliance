@@ -138,7 +138,8 @@ public class QueueController : Controller
                 newOnTrack = nowOnTrack?.Participant == null ? null : new
                 {
                     fullName = nowOnTrack.Participant.FullName,
-                    gridId   = nowOnTrack.Participant.GridId
+                    gridId   = nowOnTrack.Participant.GridId,
+                    position = nowOnTrack.Position
                 }
             });
         }

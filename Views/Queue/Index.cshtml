@@ -137,13 +137,22 @@
                   </div>
                 </div>
                 <div style="display:flex;justify-content:space-between;margin-top:16px;gap:8px;">
-                  <button class="btn-outline" style="flex:1;justify-content:center;" onclick="advanceQueue()">
-                    <i class="bi bi-skip-forward-fill"></i> Avanzar Cola
-                  </button>
-                  <a href="/Dashboard/Index" class="btn-primary"
-                     style="flex:1;justify-content:center;text-decoration:none;">
-                    <i class="bi bi-person-plus"></i> Agregar
-                  </a>
+                <div style="display:flex;flex-direction:column;margin-top:16px;gap:10px;">
+                  <div style="display:flex;gap:8px;">
+                    <button class="btn-primary" style="flex:1;justify-content:center;background:var(--green);border-color:var(--green);color:var(--bg);" onclick="advanceQueue()">
+                      <i class="bi bi-check-circle-fill"></i> Finalizar y Siguiente
+                    </button>
+                  </div>
+                  <div style="display:flex;gap:8px;">
+                    <button class="btn-outline" style="flex:1;justify-content:center;" onclick="reannounceCurrent()">
+                      <i class="bi bi-megaphone-fill"></i> Llamar de Nuevo
+                    </button>
+                    <a href="/Dashboard/Index" class="btn-outline"
+                       style="flex:1;justify-content:center;text-decoration:none;">
+                      <i class="bi bi-person-plus"></i> Agregar
+                    </a>
+                  </div>
+                </div>
                 </div>
               </div>
             </div>

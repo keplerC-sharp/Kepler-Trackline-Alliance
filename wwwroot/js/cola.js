@@ -217,7 +217,7 @@ async function advanceQueue() {
       // ── Sonido y voz ──────────────────────────────────────────────────
       playTurnAlert();
       if (data.newOnTrack) {
-        announceParticipant(data.newOnTrack.fullName, data.newOnTrack.gridId);
+        announceParticipant(data.newOnTrack.position, data.newOnTrack.fullName, 10);
       }
 
       showToast('Cola avanzada', 'success');
@@ -241,16 +241,34 @@ function playTurnAlert() {
 }
 
 // ── Text-to-Speech ────────────────────────────────────────────────────────
-function announceParticipant(fullName, gridId) {
+function announceParticipant(position, fullName, durationMinutes = 10) {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
-  const msg  = new SpeechSynthesisUtterance(
-    `Turno para ${fullName}, código ${gridId}, por favor pasar a la pista`
-  );
+  const text = `Turno número ${position}, piloto ${fullName}. Duración aproximada: ${durationMinutes} minutos.`;
+  const msg  = new SpeechSynthesisUtterance(text);
   msg.lang  = 'es-ES';
-  msg.rate  = 0.85;
+  msg.rate  = 0.9;
   msg.pitch = 1;
   window.speechSynthesis.speak(msg);
+}
+
+function reannounceCurrent() {
+  const panel = document.getElementById('currentTurnPanel');
+  if (!panel || panel.innerHTML.includes('Sin turno activo')) {
+    showToast('No hay turno activo para llamar', 'info');
+    return;
+  }
+  
+  // Obtener datos del panel (un poco hacky pero efectivo sin refactorizar todo)
+  const name = panel.querySelector('div[style*="font-size:1.5rem"]').textContent.trim();
+  const posText = panel.querySelector('.tag-green').textContent.trim();
+  const position = posText.replace('POSICIÓN #', '');
+  
+  playTurnAlert();
+  setTimeout(() => {
+    announceParticipant(position, name, 10);
+    showToast('Llamando de nuevo...', 'info');
+  }, 1000);
 }
 
 // ── Cancelar entrada ──────────────────────────────────────────────────────
