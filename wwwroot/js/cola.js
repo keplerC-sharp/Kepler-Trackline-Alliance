@@ -276,29 +276,97 @@ function updateStatsFromQueue(entries) {
  * Dynamically adjusts control button states and labels based on remaining queue depth.
  */
 function updateActionButtons(entries) {
-  const btn = document.getElementById('btnAdvance');
-  if (!btn) return;
+  const btnFinish = document.getElementById('btnFinish');
+  const btnStart = document.getElementById('btnStart');
+  const btnAdvance = document.getElementById('btnAdvance');
+  
+  if (!btnFinish || !btnStart || !btnAdvance) return;
   
   const hasMore = entries.some(e => e.status === 'QUEUED' || e.status === 'UP_NEXT');
   const onTrack = entries.some(e => e.status === 'ON_TRACK');
 
-  if (!onTrack && !hasMore) {
-    btn.disabled = true;
-    btn.innerHTML = '<i class="bi bi-slash-circle"></i> No Entries';
-    btn.style.opacity = '0.5';
-  } else if (!hasMore) {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Finish Session';
-    btn.style.opacity = '1';
+  if (onTrack) {
+    btnFinish.disabled = false;
+    btnFinish.style.opacity = '1';
   } else {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Finish & Next';
-    btn.style.opacity = '1';
+    btnFinish.disabled = true;
+    btnFinish.style.opacity = '0.5';
+  }
+
+  if (hasMore && !onTrack) {
+    btnStart.disabled = false;
+    btnStart.style.opacity = '1';
+  } else {
+    btnStart.disabled = true;
+    btnStart.style.opacity = '0.5';
+  }
+
+  if (onTrack && hasMore) {
+    btnAdvance.disabled = false;
+    btnAdvance.style.opacity = '1';
+  } else {
+    btnAdvance.disabled = true;
+    btnAdvance.style.opacity = '0.5';
   }
 }
 
 /**
- * Executes the state transition for the current session.
+ * Completes the active turn.
+ */
+async function finishTurn() {
+  if (!sessionId) { showToast('No active session found.', 'error'); return; }
+  try {
+    const res = await fetch('/Queue/FinishTurn', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ sessionId })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.ok) {
+      clearInterval(timerTick); timerTick = null; currentOnTrackId = null;
+      showToast('Turn finished successfully.', 'success');
+      await loadQueue();
+      await loadAdvancedStats();
+    } else {
+      showToast(data.error || 'Failed to finish turn.', 'error');
+    }
+  } catch (err) {
+    showToast('Communication error: ' + err.message, 'error');
+  }
+}
+
+/**
+ * Starts the next eligible turn in the queue.
+ */
+async function startTurn() {
+  if (!sessionId) { showToast('No active session found.', 'error'); return; }
+  try {
+    const res = await fetch('/Queue/StartTurn', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ sessionId })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.ok) {
+      playTurnAlert();
+      if (data.newOnTrack) {
+        announceParticipant(data.newOnTrack.position, data.newOnTrack.fullName, 10);
+      }
+      showToast('Turn started successfully.', 'success');
+      await loadQueue();
+      await loadAdvancedStats();
+    } else {
+      showToast(data.error || 'Failed to start turn.', 'error');
+    }
+  } catch (err) {
+    showToast('Communication error: ' + err.message, 'error');
+  }
+}
+
+/**
+ * Executes the combined state transition (Finish & Next).
  */
 async function advanceQueue() {
   if (!sessionId) { showToast('No active session found.', 'error'); return; }

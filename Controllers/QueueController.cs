@@ -173,6 +173,69 @@ public class QueueController : Controller
     }
 
     /// <summary>
+    /// Completes the currently active turn without starting the next one.
+    /// </summary>
+    [HttpPost]
+    public async Task<IActionResult> FinishTurn([FromBody] AdvanceRequest req)
+    {
+        try
+        {
+            if (req == null)
+                return Json(new { ok = false, error = "Invalid request payload." });
+
+            var operatorId = uint.TryParse(
+                User.FindFirstValue(ClaimTypes.NameIdentifier), out var oid) ? oid : 1u;
+
+            await _queue.FinishTurnAsync(req.SessionId, operatorId);
+            return Json(new { ok = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Finish turn failed for session {SessionId}", req?.SessionId);
+            return Json(new { ok = false, error = "Critical error finishing turn." });
+        }
+    }
+
+    /// <summary>
+    /// Starts the next eligible turn in the queue.
+    /// </summary>
+    [HttpPost]
+    public async Task<IActionResult> StartTurn([FromBody] AdvanceRequest req)
+    {
+        try
+        {
+            if (req == null)
+                return Json(new { ok = false, error = "Invalid request payload." });
+
+            var operatorId = uint.TryParse(
+                User.FindFirstValue(ClaimTypes.NameIdentifier), out var oid) ? oid : 1u;
+
+            await _queue.StartTurnAsync(req.SessionId, operatorId);
+
+            var nowOnTrack = await _context.QueueEntries
+                .Include(q => q.Participant)
+                .FirstOrDefaultAsync(q => q.SessionId == req.SessionId
+                                       && q.Status    == "ON_TRACK");
+
+            return Json(new
+            {
+                ok = true,
+                newOnTrack = nowOnTrack?.Participant == null ? null : new
+                {
+                    fullName = nowOnTrack.Participant.FullName,
+                    gridId   = nowOnTrack.Participant.GridId,
+                    position = nowOnTrack.Position
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Start turn failed for session {SessionId}", req?.SessionId);
+            return Json(new { ok = false, error = "Critical error starting turn." });
+        }
+    }
+
+    /// <summary>
     /// Adds a participant to the database and optionally assigns them to an active queue.
     /// Centralizes participant lookup/creation to ensure data integrity.
     /// </summary>

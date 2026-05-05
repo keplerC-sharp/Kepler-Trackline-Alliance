@@ -146,89 +146,104 @@ public class QueueService
     {
         try
         {
-            // 1. Finalize current session occupant.
-            var onTrack = await _context.QueueEntries
-                .FirstOrDefaultAsync(q => q.SessionId == sessionId && q.Status == "ON_TRACK");
-
-            if (onTrack != null)
-            {
-                onTrack.Status      = "COMPLETED";
-                onTrack.CompletedAt = DateTime.Now;
-                _context.SessionLogs.Add(new SessionLog
-                {
-                    SessionId  = sessionId,
-                    OperatorId = operatorId,
-                    ActionType = "ENTRY_COMPLETED",
-                    Notes      = $"Participant {onTrack.ParticipantId} completed stint"
-                });
-            }
-
-            // 2. Transition candidate (Up Next or first Queued) to active state.
-            var upNext = await _context.QueueEntries
-                .FirstOrDefaultAsync(q => q.SessionId == sessionId && q.Status == "UP_NEXT");
-
-            if (upNext != null)
-            {
-                upNext.Status    = "ON_TRACK";
-                upNext.StartedAt = DateTime.Now;
-                _context.SessionLogs.Add(new SessionLog
-                {
-                    SessionId  = sessionId,
-                    OperatorId = operatorId,
-                    ActionType = "ENTRY_ON_TRACK",
-                    Notes      = $"Participant {upNext.ParticipantId} is now ON_TRACK"
-                });
-            }
-            else
-            {
-                // Fallback: If no 'Up Next' was designated, take the next person in line.
-                var next = await _context.QueueEntries
-                    .Where(q => q.SessionId == sessionId && q.Status == "QUEUED")
-                    .OrderByDescending(q => q.Priority == "HIGH")
-                    .ThenBy(q => q.Position)
-                    .FirstOrDefaultAsync();
-
-                if (next != null)
-                {
-                    next.Status    = "ON_TRACK";
-                    next.StartedAt = DateTime.Now;
-                    _context.SessionLogs.Add(new SessionLog
-                    {
-                        SessionId  = sessionId,
-                        OperatorId = operatorId,
-                        ActionType = "ENTRY_ON_TRACK",
-                        Notes      = $"Participant {next.ParticipantId} skipped status and is now ON_TRACK"
-                    });
-                }
-            }
-
-            // 3. Populate the 'Up Next' slot to maintain race flow visibility.
-            var nextQueued = await _context.QueueEntries
-                .Where(q => q.SessionId == sessionId && q.Status == "QUEUED")
-                .OrderByDescending(q => q.Priority == "HIGH")
-                .ThenBy(q => q.Position)
-                .FirstOrDefaultAsync();
-
-            if (nextQueued != null)
-            {
-                nextQueued.Status = "UP_NEXT";
-                _context.SessionLogs.Add(new SessionLog
-                {
-                    SessionId  = sessionId,
-                    OperatorId = operatorId,
-                    ActionType = "ENTRY_PROMOTED",
-                    Notes      = $"Participant {nextQueued.ParticipantId} promoted to UP_NEXT"
-                });
-            }
-
-            await _context.SaveChangesAsync();
-            await NotifyUpdateAsync(sessionId);
+            await FinishTurnAsync(sessionId, operatorId);
+            await StartTurnAsync(sessionId, operatorId);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Critical failure advancing queue for session {SessionId}", sessionId);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Completes the currently active turn without starting the next one.
+    /// </summary>
+    public async Task FinishTurnAsync(uint sessionId, uint operatorId)
+    {
+        var onTrack = await _context.QueueEntries
+            .FirstOrDefaultAsync(q => q.SessionId == sessionId && q.Status == "ON_TRACK");
+
+        if (onTrack != null)
+        {
+            onTrack.Status      = "COMPLETED";
+            onTrack.CompletedAt = DateTime.Now;
+            _context.SessionLogs.Add(new SessionLog
+            {
+                SessionId  = sessionId,
+                OperatorId = operatorId,
+                ActionType = "ENTRY_COMPLETED",
+                Notes      = $"Participant {onTrack.ParticipantId} completed stint"
+            });
+            await _context.SaveChangesAsync();
+            await NotifyUpdateAsync(sessionId);
+        }
+    }
+
+    /// <summary>
+    /// Starts the next eligible turn in the queue (Up Next or first Queued).
+    /// </summary>
+    public async Task StartTurnAsync(uint sessionId, uint operatorId)
+    {
+        // Transition candidate (Up Next or first Queued) to active state.
+        var upNext = await _context.QueueEntries
+            .FirstOrDefaultAsync(q => q.SessionId == sessionId && q.Status == "UP_NEXT");
+
+        if (upNext != null)
+        {
+            upNext.Status    = "ON_TRACK";
+            upNext.StartedAt = DateTime.Now;
+            _context.SessionLogs.Add(new SessionLog
+            {
+                SessionId  = sessionId,
+                OperatorId = operatorId,
+                ActionType = "ENTRY_ON_TRACK",
+                Notes      = $"Participant {upNext.ParticipantId} is now ON_TRACK"
+            });
+        }
+        else
+        {
+            var next = await _context.QueueEntries
+                .Where(q => q.SessionId == sessionId && q.Status == "QUEUED")
+                .OrderByDescending(q => q.Priority == "HIGH")
+                .ThenBy(q => q.Position)
+                .FirstOrDefaultAsync();
+
+            if (next != null)
+            {
+                next.Status    = "ON_TRACK";
+                next.StartedAt = DateTime.Now;
+                _context.SessionLogs.Add(new SessionLog
+                {
+                    SessionId  = sessionId,
+                    OperatorId = operatorId,
+                    ActionType = "ENTRY_ON_TRACK",
+                    Notes      = $"Participant {next.ParticipantId} skipped status and is now ON_TRACK"
+                });
+            }
+        }
+
+        // Populate the 'Up Next' slot to maintain race flow visibility.
+        var nextQueued = await _context.QueueEntries
+            .Where(q => q.SessionId == sessionId && q.Status == "QUEUED")
+            .OrderByDescending(q => q.Priority == "HIGH")
+            .ThenBy(q => q.Position)
+            .FirstOrDefaultAsync();
+
+        if (nextQueued != null)
+        {
+            nextQueued.Status = "UP_NEXT";
+            _context.SessionLogs.Add(new SessionLog
+            {
+                SessionId  = sessionId,
+                OperatorId = operatorId,
+                ActionType = "ENTRY_PROMOTED",
+                Notes      = $"Participant {nextQueued.ParticipantId} promoted to UP_NEXT"
+            });
+        }
+
+        await _context.SaveChangesAsync();
+        await NotifyUpdateAsync(sessionId);
     }
 
     /// <summary>

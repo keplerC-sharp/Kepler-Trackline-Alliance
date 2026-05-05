@@ -105,8 +105,16 @@
 
           <div style="display:flex;flex-direction:column;margin-top:16px;gap:10px;">
             <div style="display:flex;gap:8px;">
-              <button id="btnAdvance" class="btn-primary" style="flex:1;justify-content:center;background:var(--green);border-color:var(--green);color:var(--bg);" onclick="advanceQueue()">
-                <i class="bi bi-check-circle-fill"></i> Finish & Next
+              <button id="btnFinish" class="btn-primary" style="flex:1;justify-content:center;background:var(--red);border-color:var(--red);color:var(--bg);" onclick="finishTurn()">
+                <i class="bi bi-stop-circle-fill"></i> Finish Turn
+              </button>
+              <button id="btnStart" class="btn-primary" style="flex:1;justify-content:center;background:var(--green);border-color:var(--green);color:var(--bg);" onclick="startTurn()">
+                <i class="bi bi-play-circle-fill"></i> Start Turn
+              </button>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button id="btnAdvance" class="btn-primary" style="flex:1;justify-content:center;background:var(--cyan);border-color:var(--cyan);color:var(--bg);" onclick="advanceQueue()">
+                <i class="bi bi-skip-forward-circle-fill"></i> Finish & Next
               </button>
             </div>
             <div style="display:flex;gap:8px;">
