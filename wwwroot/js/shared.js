@@ -79,12 +79,13 @@ async function testPrintConnection() {
 
 // ── SIDEBAR ───────────────────────────────────────────────────────────────
 function renderSidebar(activePage, opName) {
-  const pages = [
-    { id: 'registry',  icon: 'bi-person-lines-fill', label: 'Driver Registry',  href: '/Dashboard/Index'   },
-    { id: 'cola',      icon: 'bi-clock-history',     label: 'Cola de Turnos',   href: '/Queue/Index'       },
-    { id: 'tiquetes',  icon: 'bi-ticket-perforated', label: 'Tiquetes',         href: '/Dashboard/Tickets' },
-    { id: 'operators', icon: 'bi-person-plus',        label: 'Crear Operador',  href: '/Auth/Register'     },
-  ];
+    const pages = [
+      { id: 'registry',    icon: 'bi-person-lines-fill', label: 'Driver Registry',  href: '/Dashboard/Index'   },
+      { id: 'cola',        icon: 'bi-clock-history',     label: 'Cola de Turnos',   href: '/Queue/Index'       },
+      { id: 'waitingroom', icon: 'bi-display',           label: 'Sala de Espera',   href: '/Queue/WaitingRoom' },
+      { id: 'tiquetes',    icon: 'bi-ticket-perforated', label: 'Tiquetes',         href: '/Dashboard/Tickets' },
+      { id: 'operators',   icon: 'bi-person-plus',       label: 'Crear Operador',   href: '/Auth/Register'     },
+    ];
   const name     = opName || 'Operador';
   const initials = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || 'OP';
   return `

@@ -46,6 +46,11 @@ public class QueueController : Controller
         }
     }
 
+    // ── GET /Queue/WaitingRoom — Pantalla pública de sala de espera ──────────
+    [AllowAnonymous]
+    [HttpGet("/Queue/WaitingRoom")]
+    public IActionResult WaitingRoom() => View();
+
     // ── API GET /Queue/GetQueue?sessionId=1 ───────────────────────────────
     [HttpGet]
     public async Task<IActionResult> GetQueue(uint sessionId)
