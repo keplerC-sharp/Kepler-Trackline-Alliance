@@ -1,8 +1,10 @@
 using Kepler_Trackline_Alliance.Data;
 using Kepler_Trackline_Alliance.Models;
+using Kepler_Trackline_Alliance.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Kepler_Trackline_Alliance.Controllers;
 
@@ -10,12 +12,17 @@ namespace Kepler_Trackline_Alliance.Controllers;
 public class DashboardController : Controller
 {
     private readonly AppDbContext _context;
+    private readonly QueueService _queueService;
     private readonly ILogger<DashboardController> _logger;
 
-    public DashboardController(AppDbContext context, ILogger<DashboardController> logger)
+    public DashboardController(
+        AppDbContext context,
+        QueueService queueService,
+        ILogger<DashboardController> logger)
     {
-        _context = context;
-        _logger  = logger;
+        _context      = context;
+        _queueService = queueService;
+        _logger       = logger;
     }
 
     // ── GET /Dashboard/Index — Driver Registry (formulario de participantes) ──
@@ -107,21 +114,18 @@ public class DashboardController : Controller
             if (req == null)
                 return Json(new { ok = false, error = "Datos inválidos" });
 
-            // Verificar que la sesión exista y esté activa
             var session = await _context.Sessions
                 .FirstOrDefaultAsync(s => s.Id == req.SessionId && s.Status == "LIVE");
 
             if (session == null)
                 return Json(new { ok = false, error = "No hay sesión activa con ese ID" });
 
-            // Obtener participante
             var participant = await _context.Participants
                 .FirstOrDefaultAsync(p => p.Id == req.ParticipantId);
 
             if (participant == null)
                 return Json(new { ok = false, error = "Participante no encontrado" });
 
-            // Verificar que no esté ya en cola activa
             var alreadyIn = await _context.QueueEntries.AnyAsync(q =>
                 q.SessionId     == req.SessionId &&
                 q.ParticipantId == participant.Id &&
@@ -130,62 +134,22 @@ public class DashboardController : Controller
             if (alreadyIn)
                 return Json(new { ok = false, error = "El participante ya está en la cola activa" });
 
-            // Calcular posición
-            var lastPos = await _context.QueueEntries
-                .Where(q => q.SessionId == req.SessionId)
-                .MaxAsync(q => (int?)q.Position) ?? 0;
+            // Delegar toda la lógica de posición/prioridad al servicio
+            var operatorId = uint.TryParse(
+                User.FindFirstValue(ClaimTypes.NameIdentifier),
+                out var oid) ? oid : 1u;
 
-            var priority = participant.Grade == "S" ? "HIGH" : "NORMAL";
-            int position;
+            await _queueService.AddAsync(req.SessionId, participant, operatorId);
 
-            if (priority == "HIGH")
-            {
-                var firstNormal = await _context.QueueEntries
-                    .Where(q => q.SessionId == req.SessionId &&
-                                q.Status   == "QUEUED"      &&
-                                q.Priority == "NORMAL")
-                    .OrderBy(q => q.Position)
-                    .Select(q => (int?)q.Position)
-                    .FirstOrDefaultAsync();
+            // Obtener la entrada recién creada para devolver la posición
+            var entry = await _context.QueueEntries
+                .Where(q => q.SessionId == req.SessionId
+                         && q.ParticipantId == participant.Id
+                         && q.Status == "QUEUED")
+                .OrderByDescending(q => q.EnteredAt)
+                .FirstAsync();
 
-                if (firstNormal.HasValue)
-                {
-                    await _context.QueueEntries
-                        .Where(q => q.SessionId == req.SessionId && q.Position >= firstNormal.Value)
-                        .ExecuteUpdateAsync(s => s.SetProperty(x => x.Position, x => x.Position + 1));
-                    position = firstNormal.Value;
-                }
-                else
-                {
-                    position = lastPos + 1;
-                }
-            }
-            else
-            {
-                position = lastPos + 1;
-            }
-
-            var entry = new QueueEntry
-            {
-                SessionId     = req.SessionId,
-                ParticipantId = participant.Id,
-                Position      = position,
-                Priority      = priority,
-                Status        = "QUEUED"
-            };
-
-            _context.QueueEntries.Add(entry);
-
-            _context.SessionLogs.Add(new SessionLog
-            {
-                SessionId  = req.SessionId,
-                ActionType = "ENTRY_ADDED",
-                Notes      = $"{participant.GridId} agregado a posición {position} via Dashboard"
-            });
-
-            await _context.SaveChangesAsync();
-
-            return Json(new { ok = true, entryId = entry.Id, position });
+            return Json(new { ok = true, entryId = entry.Id, position = entry.Position });
         }
         catch (Exception ex)
         {

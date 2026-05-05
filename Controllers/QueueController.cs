@@ -116,9 +116,26 @@ public class QueueController : Controller
             if (req == null)
                 return Json(new { ok = false, error = "Datos inválidos" });
 
-            var operatorId = uint.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var oid) ? oid : 1u;
+            var operatorId = uint.TryParse(
+                User.FindFirstValue(ClaimTypes.NameIdentifier), out var oid) ? oid : 1u;
+
             await _queue.AdvanceQueueAsync(req.SessionId, operatorId);
-            return Json(new { ok = true });
+
+            // Devolver el participante que acaba de pasar a ON_TRACK
+            var nowOnTrack = await _context.QueueEntries
+                .Include(q => q.Participant)
+                .FirstOrDefaultAsync(q => q.SessionId == req.SessionId
+                                       && q.Status    == "ON_TRACK");
+
+            return Json(new
+            {
+                ok = true,
+                newOnTrack = nowOnTrack?.Participant == null ? null : new
+                {
+                    fullName = nowOnTrack.Participant.FullName,
+                    gridId   = nowOnTrack.Participant.GridId
+                }
+            });
         }
         catch (Exception ex)
         {
