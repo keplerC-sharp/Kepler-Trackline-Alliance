@@ -202,6 +202,9 @@
         <div id="currentTurnDisplay" style="width:100%; display:flex; flex-direction:column; align-items:center;">
           <div class="no-turn">No Active Participant</div>
         </div>
+        <div id="wrTimer" style="font-family:var(--font-mono); font-size:3rem; font-weight:700; color:var(--text-dim); margin-top:20px; letter-spacing:0.1em; display:none;">
+          00:00
+        </div>
       </section>
 
       <aside class="queue-panel">
@@ -233,6 +236,7 @@
   let screenActive  = false;
   let connection    = null;
   let sessionId     = 0;
+  let wrTimerTick   = null;
 
   function updateClock() {
     const el = document.getElementById('clock');
@@ -257,9 +261,12 @@
     // Warm up Speech Synthesis
     const unlock = new SpeechSynthesisUtterance("");
     window.speechSynthesis.speak(unlock);
-    
-    initSignalR();
   }
+
+  // Initialize data connection immediately on page load
+  window.addEventListener('DOMContentLoaded', () => {
+    initSignalR();
+  });
 
   async function initSignalR() {
     connection = new signalR.HubConnectionBuilder()
@@ -284,7 +291,7 @@
 
   async function loadData() {
     try {
-      const sr = await fetch('/Queue/GetActiveSession');
+      const sr = await fetch('/Queue/GetActiveSession', { cache: 'no-store' });
       const session = sr.ok ? await sr.json() : null;
       const sl = document.getElementById('sessionLabel');
 
@@ -302,7 +309,7 @@
 
       if (sl) sl.textContent = `Active Session: ${session.sessionCode}`;
 
-      const qr = await fetch(`/Queue/GetQueue?sessionId=${session.id}`);
+      const qr = await fetch(`/Queue/GetQueue?sessionId=${session.id}`, { cache: 'no-store' });
       if (!qr.ok) return;
       const entries = await qr.json();
 
@@ -318,15 +325,22 @@
       '<div class="no-turn">Station Offline</div>';
     document.getElementById('upcomingList').innerHTML =
       '<div class="no-turn" style="padding:40px 0;">Queue Empty</div>';
+    document.getElementById('wrTimer').style.display = 'none';
+    clearInterval(wrTimerTick);
+    wrTimerTick = null;
   }
 
   function renderCurrent(entries) {
     const active = entries.find(e => e.status === 'ON_TRACK');
     const el     = document.getElementById('currentTurnDisplay');
+    const timerEl= document.getElementById('wrTimer');
 
     if (!active) {
       el.innerHTML = '<div class="no-turn">No Active Stint</div>';
+      timerEl.style.display = 'none';
       lastOnTrackId = null;
+      clearInterval(wrTimerTick);
+      wrTimerTick = null;
       return;
     }
 
@@ -339,12 +353,34 @@
         }, 1500);
       }
       lastOnTrackId = active.id;
+      
+      // Reset and start timer
+      clearInterval(wrTimerTick);
+      wrTimerTick = null;
     }
 
     el.innerHTML = `
       <div class="turn-number">${String(active.position).padStart(2,'0')}</div>
       <div class="turn-name">${esc(active.participant?.fullName ?? '—')}</div>
       <div class="turn-sub">${esc(active.participant?.gridId ?? '—')} · Grade ${esc(active.participant?.grade ?? '?')}</div>`;
+
+    if (active.startedAt && !wrTimerTick) {
+      timerEl.style.display = 'block';
+      const startMs = new Date(active.startedAt).getTime();
+      wrTimerTick = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startMs) / 1000);
+        const m = String(Math.floor(elapsed / 60)).padStart(2,'0');
+        const s = String(elapsed % 60).padStart(2,'0');
+        timerEl.textContent = `${m}:${s}`;
+        
+        // Change color based on time (e.g. over 25 mins)
+        if (elapsed > 1500) {
+          timerEl.style.color = 'var(--red)';
+        } else {
+          timerEl.style.color = 'var(--cyan)';
+        }
+      }, 1000);
+    }
   }
 
   function renderUpcoming(entries) {
