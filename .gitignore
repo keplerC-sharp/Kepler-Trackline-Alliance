@@ -8,7 +8,7 @@ obj/
 .vscode/
 
 ## [Rider & Visual Studio]
-appsettings.json
+
 appsettings.*.json
 .idea/
 .vs/

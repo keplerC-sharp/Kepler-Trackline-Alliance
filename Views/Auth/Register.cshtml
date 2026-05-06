@@ -18,7 +18,7 @@
 <div class="overlay" id="mobileOverlay" onclick="closeSidebar()"></div>
 
 <div class="screen active" id="screen-dashboard" style="flex-direction:column;">
-  <div class="topbar" id="topbar"></div>
+  <div class="topbar" id="topbar"><div class="topbar-brand"><span>CIRCUIT PRO: </span>PIT CONTROL</div></div>
   <div class="dashboard-body">
     <div class="sidebar" id="sidebar"></div>
     <div class="main-content">
@@ -120,7 +120,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="~/js/shared.js"></script>
+<script src="~/js/shared.js" asp-append-version="true"></script>
 <script>
 /**
  * Orchestrates the secure layout initialization upon DOM readiness.

@@ -42,7 +42,7 @@ function closeSidebar() {
  * Retrieves the configured print server address from local storage or defaults.
  */
 function getPrintServerUrl() {
-  const ip  = document.getElementById('printServerIp');
+  const ip = document.getElementById('printServerIp');
   const val = ip ? ip.value.trim() : (localStorage.getItem('apex_print_ip') || '192.168.1.105:3000');
   if (ip) localStorage.setItem('apex_print_ip', ip.value.trim());
   return `http://${val}`;
@@ -58,7 +58,7 @@ async function sendPrintJob(btnId, payload) {
   btn.classList.add('printing');
   btn.innerHTML = '<i class="bi bi-printer print-spinner"></i> Dispatching...';
   try {
-    const res  = await fetch(`${getPrintServerUrl()}/api/print/${(payload.tipo||'').toLowerCase()}`, {
+    const res = await fetch(`${getPrintServerUrl()}/api/print/${(payload.tipo || '').toLowerCase()}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload), signal: AbortSignal.timeout(6000)
     });
@@ -67,9 +67,9 @@ async function sendPrintJob(btnId, payload) {
       btn.classList.remove('printing'); btn.classList.add('success-print');
       btn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Printed';
       showToast('Ticket dispatched to printer', 'success');
-      setTimeout(() => { 
-        btn.classList.remove('success-print'); 
-        btn.innerHTML = '<i class="bi bi-printer-fill"></i> Reprint'; 
+      setTimeout(() => {
+        btn.classList.remove('success-print');
+        btn.innerHTML = '<i class="bi bi-printer-fill"></i> Reprint';
       }, 4000);
     } else throw new Error(data.error || 'Server rejected job');
   } catch (err) {
@@ -83,7 +83,7 @@ async function sendPrintJob(btnId, payload) {
  * Verifies connectivity with the print server to ensure hardware readiness.
  */
 async function testPrintConnection() {
-  const dot   = document.getElementById('printStatusDot');
+  const dot = document.getElementById('printStatusDot');
   const label = document.getElementById('printStatusLabel');
   if (!dot || !label) return;
   dot.className = 'print-status-dot'; label.textContent = 'Testing...';
@@ -106,15 +106,15 @@ async function testPrintConnection() {
  * Uses a configuration object to easily manage application routes.
  */
 function renderSidebar(activePage, opName) {
-    const pages = [
-      { id: 'registry',    icon: 'bi-person-lines-fill', label: 'Driver Registry', href: '/Dashboard/Index'   },
-      { id: 'cola',        icon: 'bi-clock-history',     label: 'Track Queue',     href: '/Queue/Index'       },
-      { id: 'waitingroom', icon: 'bi-display',           label: 'Waiting Room',    href: '/Queue/WaitingRoom', target: '_blank' },
-      { id: 'tiquetes',    icon: 'bi-ticket-perforated', label: 'Tickets',          href: '/Dashboard/Tickets' },
-      { id: 'operators',   icon: 'bi-person-plus',       label: 'New Operator',    href: '/Auth/Register'     },
-    ];
-  const name     = opName || 'Operator';
-  const initials = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || 'OP';
+  const pages = [
+    { id: 'registry', icon: 'bi-person-lines-fill', label: 'Driver Registry', href: '/Dashboard/Index' },
+    { id: 'cola', icon: 'bi-clock-history', label: 'Track Queue', href: '/Queue/Index' },
+    { id: 'waitingroom', icon: 'bi-display', label: 'Waiting Room', href: '/Queue/WaitingRoom', target: '_blank' },
+    { id: 'tiquetes', icon: 'bi-ticket-perforated', label: 'Tickets', href: '/Dashboard/Tickets' },
+    { id: 'operators', icon: 'bi-person-plus', label: 'New Operator', href: '/Auth/Register' },
+  ];
+  const name = opName || 'Operator';
+  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'OP';
   return `
     <div class="sidebar-user">
       <div class="sidebar-avatar">${initials}</div>
@@ -137,35 +137,10 @@ function renderSidebar(activePage, opName) {
 }
 
 /**
- * Renders the top navigation bar.
- * Designed to provide quick access to search and critical safety controls.
- */
-function renderTopbar() {
-  return `
-    <button class="hamburger" onclick="toggleSidebar()">
-      <i class="bi bi-list"></i>
-    </button>
-    <div class="topbar-brand"><span>CIRCUIT PRO: </span>PIT CONTROL</div>
-    <div class="topbar-search">
-      <i class="bi bi-search"></i>
-      <input type="text" placeholder="Quick search...">
-    </div>
-    <div class="topbar-actions">
-      <div class="btn-icon"><i class="bi bi-bell"></i></div>
-      <div class="btn-icon"><i class="bi bi-gear"></i></div>
-      <button class="btn-stop" onclick="showToast('Emergency Stop Triggered', 'error')">
-        <i class="bi bi-octagon-fill me-1"></i> Emergency Stop
-      </button>
-    </div>`;
-}
-
-/**
  * Entry point for layout initialization.
  * Synchronizes the UI with the current authenticated user context.
  */
 async function initLayout(activePage) {
-  const topbar = document.getElementById('topbar');
-  if (topbar) topbar.innerHTML = renderTopbar();
 
   const sidebar = document.getElementById('sidebar');
   if (sidebar) sidebar.innerHTML = renderSidebar(activePage, 'Operator');
