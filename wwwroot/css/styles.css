@@ -468,6 +468,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
 }
 .sidebar-user-role {
   font-family: var(--font-mono);
@@ -706,16 +707,21 @@ select.z-field-input {
 .driver-card:hover { border-color: var(--border-glow); }
 
 .driver-card-num {
-  width: 44px; height: 44px;
+  min-width: 65px;
+  height: 44px;
   background: var(--bg2);
   border: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: 1rem;
   font-weight: 900;
   color: var(--text-dim);
   flex-shrink: 0;
   border-radius: 3px;
+  padding: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .driver-card-info { flex: 1; min-width: 0; }
@@ -726,6 +732,9 @@ select.z-field-input {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .driver-card-vehicle {
   color: var(--cyan);
@@ -734,6 +743,9 @@ select.z-field-input {
   letter-spacing: 0.05em;
   margin-top: 3px;
   text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .driver-card-meta {
   font-family: var(--font-mono);
@@ -789,6 +801,7 @@ select.z-field-input {
   font-size: 0.8rem;
   color: var(--text-dim);
   line-height: 1.5;
+  word-break: break-word;
 }
 
 /* driver id row with verify */
@@ -879,6 +892,9 @@ select.z-field-input {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .queue-vehicle {
   font-size: 0.78rem;
@@ -886,6 +902,9 @@ select.z-field-input {
   margin-top: 2px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .queue-meta {
   display: flex;
@@ -1586,17 +1605,26 @@ select.z-field-input {
 }
 .pilot-selected-card .psc-num {
   font-family: var(--font-display);
-  font-size: 2rem;
+  font-size: 1.6rem;
   font-weight: 900;
   color: var(--cyan);
-  width: 50px;
+  min-width: 70px;
+  padding: 0 10px;
   text-align: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .pilot-selected-card .psc-name {
   font-family: var(--font-display);
-  font-size: 1.1rem;
+  font-size: 1.2rem;
   font-weight: 700;
   text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 350px;
 }
 .pilot-selected-card .psc-vehicle {
   font-size: 0.78rem;
@@ -1615,14 +1643,14 @@ select.z-field-input {
 
 /* timer countdown */
 .big-timer {
-  font-family: var(--font-display);
-  font-size: 4rem;
+  font-family: var(--font-mono);
+  font-size: clamp(2.5rem, 8vw, 4rem);
   font-weight: 900;
   color: var(--cyan);
-  letter-spacing: 0.05em;
-  line-height: 1;
   text-align: center;
-  margin: 20px 0;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(0,229,255,0.2);
 }
 .big-timer.warning { color: var(--yellow); }
 .big-timer.critical { color: var(--red); animation: timerBlink 0.5s ease infinite; }
@@ -1684,3 +1712,54 @@ select.z-field-input {
 .tab-btn.active { color: var(--cyan); border-bottom-color: var(--cyan); }
 .tab-panel { display: none; }
 .tab-panel.active { display: block; animation: fadeUp 0.3s ease; }
+
+.ac-name, .ac-vehicle, .psc-name, .psc-vehicle, .ticket-val {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.duration-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 8px;
+}
+
+.stat-mini-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pilot-selected-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg3);
+  border: 1px solid var(--cyan);
+  padding: 12px;
+  border-radius: 3px;
+  margin-bottom: 16px;
+  min-width: 0;
+}
+
+.pilot-selected-card div { min-width: 0; }
+
+/* RESPONSIVE DASHBOARD TWEAKS */
+@media (max-width: 991px) {
+  .z-panel { margin-bottom: 20px; }
+  .panel-body { padding: 15px; }
+  .stat-mini-val { font-size: 1.4rem; }
+}
+
+@media (max-width: 576px) {
+  .stat-mini-val { font-size: 1.2rem; }
+  .btn-primary, .btn-outline { font-size: 0.85rem; padding: 10px 15px; }
+  .panel-title { font-size: 0.8rem; padding: 12px 15px; }
+}

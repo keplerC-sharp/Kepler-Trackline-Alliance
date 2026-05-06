@@ -336,7 +336,9 @@ async function startTurn() {
     if (data.ok) {
       // Play alert first; announce pilot AFTER the sound ends to avoid overlap.
       if (data.newOnTrack) {
-        playTurnAlert(() => announceParticipant(data.newOnTrack.position, data.newOnTrack.fullName, 10));
+        playTurnAlert(() => {
+          setTimeout(() => announceParticipant(data.newOnTrack.position, data.newOnTrack.fullName, 10), 1200);
+        });
       } else {
         playTurnAlert();
       }
@@ -369,7 +371,9 @@ async function advanceQueue() {
 
       // Play alert first; announce pilot AFTER the sound ends to avoid overlap.
       if (data.newOnTrack) {
-        playTurnAlert(() => announceParticipant(data.newOnTrack.position, data.newOnTrack.fullName, 10));
+        playTurnAlert(() => {
+          setTimeout(() => announceParticipant(data.newOnTrack.position, data.newOnTrack.fullName, 10), 1200);
+        });
       } else {
         playTurnAlert();
       }
@@ -392,6 +396,7 @@ function playTurnAlert(onEnded) {
   try {
     // Stop and reuse the same audio instance to avoid overlap.
     if (_alertAudio) {
+      _alertAudio.onended = null; // Important: Clear previous handler to avoid race conditions
       _alertAudio.pause();
       _alertAudio.currentTime = 0;
     } else {

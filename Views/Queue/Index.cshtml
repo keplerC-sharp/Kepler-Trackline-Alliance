@@ -7,25 +7,34 @@
 <input type="hidden" id="activeSessionId" value="@Model.SessionId" />
 
 <div class="row g-4">
-  <!-- PRIMARY STACK: Track Queue Display -->
-  <div class="col-lg-8">
-    @if (Model.SessionId == 0)
-    {
-      <div class="z-panel" style="border-color:var(--cyan); background:rgba(0,183,255,0.05);">
-        <div class="panel-body text-center py-5">
-          <i class="bi bi-play-circle" style="font-size:3rem; color:var(--cyan); opacity:0.5;"></i>
-          <h2 class="mt-3" style="font-family:var(--font-display); font-weight:900;">NO LIVE SESSION</h2>
-          <p class="text-dim">Initiate a new track session to begin accepting pilots.</p>
+  @if (Model.SessionId == 0)
+  {
+    <div class="col-12">
+      <div class="z-panel" style="border-color:var(--cyan); background:rgba(0,183,255,0.01); padding:60px 20px; display:flex; align-items:center; justify-content:center;">
+        <div class="panel-body text-center" style="max-width:540px; width:100%;">
+          <div class="mb-4" style="position:relative; display:inline-block;">
+             <i class="bi bi-broadcast" style="font-size:clamp(3rem, 10vw, 5rem); color:var(--cyan); opacity:0.15;"></i>
+             <i class="bi bi-play-circle" style="font-size:clamp(1.5rem, 5vw, 2.5rem); color:var(--cyan); position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-shadow: 0 0 15px rgba(0,229,255,0.5);"></i>
+          </div>
+          <h2 class="mt-2" style="font-family:var(--font-display); font-weight:900; letter-spacing:0.12em; font-size:clamp(1.8rem, 6vw, 2.8rem);">NO LIVE SESSION</h2>
+          <div style="height:2px; width:60px; background:var(--cyan); margin:20px auto; opacity:0.4;"></div>
+          <p class="text-dim" style="font-family:var(--font-mono); letter-spacing:0.12em; text-transform:uppercase; font-size:clamp(0.6rem, 2vw, 0.75rem); line-height:1.8; color:var(--text-dim);">
+            System Standby · Telemetry Link Inactive<br>
+            Initiate a new track session to authorize pilot onboarding and stint management.
+          </p>
           <form asp-controller="Session" asp-action="Start" method="post">
-            <button type="submit" class="btn-primary mt-3" style="padding:12px 30px; font-size:1.1rem;">
-              <i class="bi bi-lightning-fill"></i> START NEW SESSION
+            <button type="submit" class="btn-primary mt-4" style="padding:15px 40px; font-size:clamp(0.9rem, 3vw, 1.1rem); box-shadow:0 0 30px rgba(0,229,255,0.2);">
+              <i class="bi bi-lightning-fill"></i> START TRACK SESSION
             </button>
           </form>
         </div>
       </div>
-    }
-    else
-    {
+    </div>
+  }
+  else
+  {
+    <!-- PRIMARY STACK: Track Queue Display -->
+    <div class="col-lg-8">
       <div class="z-panel">
         <div class="panel-title">
           <i class="bi bi-list-ol"></i> Track Queue
@@ -77,13 +86,10 @@
           </div>
         </div>
       </div>
-    }
-  </div>
+    </div>
 
-  <!-- CONTROL STACK: Session & Stint Management -->
-  <div class="col-lg-4">
-    @if (Model.SessionId > 0)
-    {
+    <!-- CONTROL STACK: Session & Stint Management -->
+    <div class="col-lg-4">
       <div class="z-panel red-accent">
         <div class="panel-title">
           <i class="bi bi-lightning-fill"></i> Stint Control
@@ -130,16 +136,14 @@
         </div>
       </div>
 
-
-
       <!-- ADMINISTRATIVE: Session Finalization -->
       <div class="mt-4">
         <button type="button" class="btn-outline w-100" style="border-color:var(--red); color:var(--red); justify-content:center;" data-bs-toggle="modal" data-bs-target="#closeSessionModal">
           <i class="bi bi-stop-circle me-2"></i> CLOSE TRACK SESSION
         </button>
       </div>
-    }
-  </div>
+    </div>
+  }
 </div>
 
 <!-- Close Session Modal -->
