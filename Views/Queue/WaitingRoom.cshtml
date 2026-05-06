@@ -237,6 +237,8 @@
   let connection    = null;
   let sessionId     = 0;
   let wrTimerTick   = null;
+  let _alertAudio   = null; // singleton audio player — prevents overlapping
+  let sessionWasLive = false; // tracks if a session was active before going offline
 
   function updateClock() {
     const el = document.getElementById('clock');
@@ -302,6 +304,8 @@
         return;
       }
       
+      sessionWasLive = true; // mark that a live session was seen
+      
       if (sessionId !== session.id) {
         sessionId = session.id;
         await connection.invoke("JoinSession", String(sessionId));
@@ -321,10 +325,22 @@
   }
 
   function renderNoSession() {
-    document.getElementById('currentTurnDisplay').innerHTML =
-      '<div class="no-turn">Station Offline</div>';
+    const wasLive = sessionWasLive;
+    sessionWasLive = false;
+
+    const message = wasLive
+      ? `<div class="now-label" style="color:var(--red);">
+           <div class="live-dot" style="background:var(--red);"></div>
+           Session Ended
+         </div>
+         <div class="turn-number" style="font-size:5rem; color:var(--red); text-shadow:0 0 40px rgba(232,25,10,0.4);">✓</div>
+         <div class="turn-name" style="color:var(--text-dim); font-size:1.8rem;">Track Session Closed</div>
+         <div class="turn-sub">The session has been finalized by the operator.</div>`
+      : `<div class="no-turn">Station Offline — Awaiting session</div>`;
+
+    document.getElementById('currentTurnDisplay').innerHTML = message;
     document.getElementById('upcomingList').innerHTML =
-      '<div class="no-turn" style="padding:40px 0;">Queue Empty</div>';
+      '<div class="no-turn" style="padding:40px 0;">No active session</div>';
     document.getElementById('wrTimer').style.display = 'none';
     clearInterval(wrTimerTick);
     wrTimerTick = null;
@@ -347,10 +363,15 @@
     // Trigger alert and voice synthesis only when the active pilot changes.
     if (active.id !== lastOnTrackId) {
       if (lastOnTrackId !== null) { 
-        playAlert();
-        setTimeout(() => {
-          announceTTS(active.position, active.participant?.fullName, 10);
-        }, 1500);
+        // Play alert; announce pilot AFTER the sound ends to prevent overlap.
+        const alertAudio = playAlert();
+        if (alertAudio) {
+          alertAudio.onended = () => {
+            announceTTS(active.position, active.participant?.fullName, 10);
+          };
+        } else {
+          setTimeout(() => announceTTS(active.position, active.participant?.fullName, 10), 2000);
+        }
       }
       lastOnTrackId = active.id;
       
@@ -406,7 +427,15 @@
   function playAlert() {
     if (!screenActive) return;
     try {
-      new Audio('/sounds/pase-a-la-pista.mp3').play().catch(()=>{});
+      // Singleton: stop previous sound before replaying.
+      if (_alertAudio) {
+        _alertAudio.pause();
+        _alertAudio.currentTime = 0;
+      } else {
+        _alertAudio = new Audio('/sounds/pase-a-la-pista.mp3');
+      }
+      _alertAudio.play().catch(() => {});
+      return _alertAudio;
     } catch(e) {}
   }
 

@@ -153,10 +153,6 @@ function renderQueueList(entries) {
           </div>
           <div class="queue-meta">
             <span class="tag ${tagCls}">${tagTxt}</span>
-            ${isOn ? `
-              <button class="tag tag-blue ms-auto" onclick="openComment(${q.id})" style="border:none;cursor:pointer;">
-                <i class="bi bi-chat-dots-fill"></i> Comment
-              </button>` : ''}
           </div>
         </div>
         ${!isOn ? `
@@ -274,40 +270,28 @@ function updateStatsFromQueue(entries) {
 
 /**
  * Dynamically adjusts control button states and labels based on remaining queue depth.
+ * Fix: Start Turn is enabled when ANY entry is QUEUED or UP_NEXT, not just UP_NEXT.
  */
 function updateActionButtons(entries) {
-  const btnFinish = document.getElementById('btnFinish');
-  const btnStart = document.getElementById('btnStart');
+  const btnFinish  = document.getElementById('btnFinish');
+  const btnStart   = document.getElementById('btnStart');
   const btnAdvance = document.getElementById('btnAdvance');
   
   if (!btnFinish || !btnStart || !btnAdvance) return;
   
-  const hasMore = entries.some(e => e.status === 'QUEUED' || e.status === 'UP_NEXT');
-  const onTrack = entries.some(e => e.status === 'ON_TRACK');
+  // Consider QUEUED entries too — backend handles QUEUED → ON_TRACK directly.
+  const hasNext  = entries.some(e => e.status === 'QUEUED' || e.status === 'UP_NEXT');
+  const onTrack  = entries.some(e => e.status === 'ON_TRACK');
 
-  if (onTrack) {
-    btnFinish.disabled = false;
-    btnFinish.style.opacity = '1';
-  } else {
-    btnFinish.disabled = true;
-    btnFinish.style.opacity = '0.5';
-  }
+  const setBtn = (btn, enabled) => {
+    btn.disabled = !enabled;
+    btn.style.opacity = enabled ? '1' : '0.5';
+    btn.style.cursor  = enabled ? 'pointer' : 'not-allowed';
+  };
 
-  if (hasMore && !onTrack) {
-    btnStart.disabled = false;
-    btnStart.style.opacity = '1';
-  } else {
-    btnStart.disabled = true;
-    btnStart.style.opacity = '0.5';
-  }
-
-  if (onTrack && hasMore) {
-    btnAdvance.disabled = false;
-    btnAdvance.style.opacity = '1';
-  } else {
-    btnAdvance.disabled = true;
-    btnAdvance.style.opacity = '0.5';
-  }
+  setBtn(btnFinish,  onTrack);
+  setBtn(btnStart,   hasNext && !onTrack);
+  setBtn(btnAdvance, onTrack && hasNext);
 }
 
 /**
@@ -350,9 +334,11 @@ async function startTurn() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     if (data.ok) {
-      playTurnAlert();
+      // Play alert first; announce pilot AFTER the sound ends to avoid overlap.
       if (data.newOnTrack) {
-        announceParticipant(data.newOnTrack.position, data.newOnTrack.fullName, 10);
+        playTurnAlert(() => announceParticipant(data.newOnTrack.position, data.newOnTrack.fullName, 10));
+      } else {
+        playTurnAlert();
       }
       showToast('Turn started successfully.', 'success');
       await loadQueue();
@@ -381,10 +367,11 @@ async function advanceQueue() {
     if (data.ok) {
       clearInterval(timerTick); timerTick = null; currentOnTrackId = null;
 
-      // Audio and voice feedback to signal turn changes.
-      playTurnAlert();
+      // Play alert first; announce pilot AFTER the sound ends to avoid overlap.
       if (data.newOnTrack) {
-        announceParticipant(data.newOnTrack.position, data.newOnTrack.fullName, 10);
+        playTurnAlert(() => announceParticipant(data.newOnTrack.position, data.newOnTrack.fullName, 10));
+      } else {
+        playTurnAlert();
       }
 
       showToast('Queue advanced successfully.', 'success');
@@ -398,16 +385,31 @@ async function advanceQueue() {
   }
 }
 
-function playTurnAlert() {
+// ── Singleton audio player — prevents overlapping sounds ─────────────────
+let _alertAudio = null;
+
+function playTurnAlert(onEnded) {
   try {
-    const audio = new Audio('/sounds/pase-a-la-pista.mp3');
-    audio.volume = 0.8;
-    audio.play().catch(err => console.warn('Audio playback inhibited by browser:', err));
+    // Stop and reuse the same audio instance to avoid overlap.
+    if (_alertAudio) {
+      _alertAudio.pause();
+      _alertAudio.currentTime = 0;
+    } else {
+      _alertAudio = new Audio('/sounds/pase-a-la-pista.mp3');
+      _alertAudio.volume = 0.8;
+    }
+    if (onEnded) {
+      _alertAudio.onended = onEnded;
+    } else {
+      _alertAudio.onended = null;
+    }
+    _alertAudio.play().catch(err => console.warn('Audio playback inhibited by browser:', err));
   } catch (e) { /* Fail silently */ }
 }
 
 /**
  * Uses SpeechSynthesis API to announce the next pilot over the PA system.
+ * Called AFTER the alert sound finishes to prevent audio collision.
  */
 function announceParticipant(position, fullName, durationMinutes = 10) {
   if (!('speechSynthesis' in window)) return;
@@ -478,64 +480,4 @@ async function cancelEntry(entryId) {
   }
 }
 
-/**
- * Handles the display and submission of administrative comments.
- */
-function openComment(entryId) {
-  let modal = document.getElementById('commentModal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'commentModal';
-    modal.style.cssText = `
-      position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9000;
-      display:flex;align-items:center;justify-content:center;`;
-    document.body.appendChild(modal);
-  }
-  modal.innerHTML = `
-    <div style="background:var(--bg-card);padding:25px;border-radius:12px;width:90%;max-width:400px;
-      border:1px solid var(--border);box-shadow:0 10px 40px rgba(0,0,0,0.5);">
-      <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:700;margin-bottom:15px;color:var(--cyan);">
-        <i class="bi bi-chat-dots me-2"></i> Advisor Comment
-      </div>
-      <textarea id="commentText" style="width:100%;height:100px;background:var(--bg-body);color:var(--text);
-        border:1px solid var(--border);border-radius:6px;padding:10px;font-family:inherit;font-size:0.9rem;resize:none;"
-        placeholder="Enter your notes here..."></textarea>
-      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
-        <button class="btn-secondary" onclick="closeComment()" style="padding:6px 15px;font-size:0.8rem;">Cancel</button>
-        <button class="btn-primary" onclick="saveComment(${entryId})" style="padding:6px 15px;font-size:0.8rem;">Save</button>
-      </div>
-    </div>`;
-  modal.style.display = 'flex';
-  setTimeout(() => document.getElementById('commentText')?.focus(), 100);
-}
 
-function closeComment() {
-  const modal = document.getElementById('commentModal');
-  if (modal) modal.style.display = 'none';
-}
-
-async function saveComment(entryId) {
-  const text = document.getElementById('commentText')?.value.trim();
-  if (!text) { showToast('Comment field cannot be empty.', 'error'); return; }
-  try {
-    const res = await fetch('/Queue/AddComment', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ entryId, comment: text })
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (data.ok) {
-      showToast('Comment saved successfully.', 'success');
-      closeComment();
-    } else {
-      showToast(data.error || 'Failed to save comment.', 'error');
-    }
-  } catch (err) {
-    showToast('Connection error: ' + err.message, 'error');
-  }
-}
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeComment();
-});
